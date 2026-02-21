@@ -11,12 +11,9 @@ const SplashScreen = () => {
   const router = useRouter();
 
   useEffect(() => {
-    // Check if user is already logged in
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      // Wait for 2 seconds (for splash animation feel)
       setTimeout(async () => {
         if (user) {
-          // USER IS LOGGED IN - Check their role
           try {
             const docRef = doc(db, "users", user.uid);
             const docSnap = await getDoc(docRef);
@@ -34,7 +31,6 @@ const SplashScreen = () => {
             router.replace("/login");
           }
         } else {
-          // NO USER LOGGED IN - Go to Login
           router.replace("/login");
         }
       }, 2000);
@@ -46,6 +42,7 @@ const SplashScreen = () => {
   return (
     <View style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor="#FFF9E9" />
+      
       <View style={styles.textContainer}>
         <Text style={styles.logoText}>
           <Text style={{ color: '#E87D88' }}>MIND</Text>
@@ -54,18 +51,38 @@ const SplashScreen = () => {
           <Text style={{ color: '#E5915D' }}>DY</Text>
         </Text>
       </View>
-      <Image source={require('../assets/images/cloud.png')} style={styles.cloudShape} resizeMode="stretch" />
-      <Image source={require('../assets/images/animals.png')} style={styles.animalsImage} resizeMode="contain" />
+
+      {/* Cloud removed as requested. Animals image resized and repositioned */}
+      <Image 
+        source={require('../assets/images/animals.png')} 
+        style={styles.animalsImage} 
+        resizeMode="contain" 
+      />
     </View>
   );
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#FFF9E9', alignItems: 'center' },
-  textContainer: { marginTop: height * 0.25 },
-  logoText: { fontSize: 52, fontWeight: '900', letterSpacing: 2 },
-  cloudShape: { position: 'absolute', bottom: 0, right: 0, width: width * 0.9, height: height * 0.65 },
-  animalsImage: { position: 'absolute', bottom: 0, right: 0, width: width * 0.85, height: height * 0.5 },
+  container: { 
+    flex: 1, 
+    backgroundColor: '#FFF9E9', 
+    alignItems: 'center' 
+  },
+  textContainer: { 
+    marginTop: height * 0.20 // Slightly adjusted up to give animals more room
+  },
+  logoText: { 
+    fontSize: 52, 
+    fontWeight: '900', 
+    letterSpacing: 2 
+  },
+  animalsImage: { 
+    position: 'absolute', 
+    bottom: -3, // Negative value pushes it right to the edge/bottom
+    right: -55,  // Moves it more to the right to match the "cut-off" look in your image
+    width: width * 1.2, // Much bigger width (120% of screen)
+    height: height * 0.75, // Much bigger height (75% of screen)
+  },
 });
 
 export default SplashScreen;

@@ -2,6 +2,8 @@ import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useState } from 'react';
 import {
+  Alert // Added Alert for consistent popups
+  ,
   Dimensions,
   Image,
   KeyboardAvoidingView,
@@ -23,43 +25,75 @@ const { width, height } = Dimensions.get('window');
 
 const SignUpScreen = () => {
   const router = useRouter();
-const params = useLocalSearchParams();
-const selectedRole = params.selectedRole as string; // get role from role.tsx
+  const params = useLocalSearchParams();
+  const selectedRole = params.selectedRole as string;
 
-  // Input states
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
 
-  // Password visibility
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
+  // Email Validation Helper
+  const validateEmail = (email: string) => {
+    const re = /\S+@\S+\.\S+/;
+    return re.test(email);
+  };
+
   const handleSignup = async () => {
-    if(password !== confirmPassword){
-      alert("Passwords do not match!");
+    // 1. Check if fields are missing
+    if (!name || !email || !password || !confirmPassword) {
+      Alert.alert("Error", "Please fill all fields.");
+      return;
+    }
+
+    // 2. Validate email format
+    if (!validateEmail(email)) {
+      Alert.alert("Error", "Enter a valid email.");
+      return;
+    }
+
+    // 3. Password criteria (≥ 8 characters)
+    if (password.length < 8) {
+      Alert.alert("Error", "Password must be at least 8 characters.");
+      return;
+    }
+
+    // 4. Confirm password match
+    if (password !== confirmPassword) {
+      Alert.alert("Error", "Passwords do not match!");
       return;
     }
 
     try {
-      // Create user in Firebase Auth
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
       const user = userCredential.user;
 
-      // Save user info + role in Firestore
       await setDoc(doc(db, "users", user.uid), {
         name,
         email,
-        role: selectedRole,
-        status: "active"
+        role: selectedRole || 'student', // fallback if role is missing
+        status: "active",
+        createdAt: new Date().toISOString()
       });
 
-      alert("Account created successfully!");
+      Alert.alert("Success", "Registration Successful");
       router.replace("/login");
     } catch (error: any) {
-      console.log("Signup error:", error);
-      alert("Error signing up: " + error.message);
+      console.log("Signup error:", error.code);
+      
+      // Handle specific error codes from Use Case
+      if (error.code === 'auth/email-already-in-use') {
+        Alert.alert("Error", "Account already exists.");
+      } else if (error.code === 'auth/network-request-failed') {
+        Alert.alert("Error", "Unable to connect.");
+      } else if (error.code === 'auth/invalid-email') {
+        Alert.alert("Error", "Enter a valid email.");
+      } else {
+        Alert.alert("Error", error.message);
+      }
     }
   };
 
@@ -175,6 +209,7 @@ const selectedRole = params.selectedRole as string; // get role from role.tsx
   );
 };
 
+// ... keep your styles object exactly as it was ...
 const styles = StyleSheet.create({
   mainContainer: { flex:1, backgroundColor:'#FFF9E9' },
   headerSection: { height: height*0.25, justifyContent:'flex-end', paddingHorizontal:25, paddingBottom:20, zIndex:1 },

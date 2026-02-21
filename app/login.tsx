@@ -2,6 +2,7 @@ import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
 import {
+  ActivityIndicator,
   Dimensions,
   Image,
   KeyboardAvoidingView,
@@ -29,6 +30,7 @@ const LoginScreen = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [loading, setLoading] = useState(false);
 
   // --- Cute Alert States ---
   const [modalVisible, setModalVisible] = useState(false);
@@ -41,64 +43,73 @@ const LoginScreen = () => {
     setModalVisible(true);
   };
 
-  const [loading, setLoading] = useState(false);
-
   const handleLogin = async () => {
+    // 1. Validation (Matched to Alternative Scenario: Missing email or password)
     if (!email || !password) {
-      showCuteAlert("Oops!", "Don't forget to fill in both boxes! ✨");
+      showCuteAlert("Oops!", "Please enter email and password.");
       return;
     }
 
+    // Email format validation (Non-functional requirement: interface simple/easy)
     if (!emailRegex.test(email)) {
-      showCuteAlert("Hmm...", "That email looks a bit silly. Can you check it again? ✉️");
+      showCuteAlert("Invalid Email", "Please enter a valid email format.");
       return;
     }
-setLoading(true); // Start loading
+
+    setLoading(true);
+
     try {
+      // 2. Firebase Authentication (System verifies credentials)
       const userCredential = await signInWithEmailAndPassword(auth, email, password);
       const user = userCredential.user;
 
+      // 3. Check Firestore for Role (System checks the user’s role)
       const docRef = doc(db, "users", user.uid);
       const docSnap = await getDoc(docRef);
 
-     if (docSnap.exists()) {
-      const userData = docSnap.data();
-      
-      // Normalize role to lowercase to avoid "Parent" vs "parent" errors
-      const role = userData.role?.toLowerCase(); 
+      if (docSnap.exists()) {
+        const userData = docSnap.data();
+        const role = userData.role?.toLowerCase();
+        const hasBuddy = userData.selectedBuddy; 
 
-      // 3️⃣ Redirect based on the role found in Firestore
-      if (role === "parent") {
-        router.replace("/parent/main");
-      } else if (role === "teacher") {
-        router.replace("/teacher/main");
-      } else if (role === "admin") {
-        router.replace("/adminpanel");
+        // 4. Redirection Logic (Matched to Success Scenario 7)
+        if (role === "parent") {
+          if (!hasBuddy) {
+            router.replace("./choosebuddy");
+          } else {
+            router.replace("/parent/main");
+          }
+        } 
+        else if (role === "teacher") {
+          router.replace("/teacher/main");
+        } 
+        else if (role === "admin") {
+          router.replace("/adminpanel");
+        } 
+        else {
+          showCuteAlert("Error", "Role not recognized.");
+        }
       } else {
-        // If role is missing or spelled wrong in DB
-        showCuteAlert("Wait!", "We found your account, but we don't know if you're a parent or teacher! 🌈");
+        showCuteAlert("Error", "No account with this email.");
       }
-    } else {
-      showCuteAlert("Oh no!", "We found your email, but your profile is missing. Ask for help! 👤");
-    }
 
-  } catch (error: any) {
-    console.log("Login error:", error);
-    
-    // Friendly error messages for MID learners
-    if (error.code === "auth/user-not-found" || error.code === "auth/invalid-credential") {
-      showCuteAlert("Not Found", "We don't know that email or password. Try again! 🌟");
-    } else if (error.code === "auth/wrong-password") {
-      showCuteAlert("Almost!", "That password isn't quite right. Try again! 🔑");
-    } else if (error.code === "auth/network-request-failed") {
-      showCuteAlert("Internet?", "Your internet seems to be sleeping. Wake it up! 🌐");
-    } else {
-      showCuteAlert("Oopsie!", "Something went wrong. Let's try one more time! 🎈");
+    } catch (error: any) {
+      console.log("Login error code:", error.code);
+
+      // --- Error Messages matched to Alternative Scenarios ---
+      if (error.code === "auth/user-not-found") {
+        showCuteAlert("Account not found", "No account with this email.");
+      } else if (error.code === "auth/wrong-password" || error.code === "auth/invalid-credential") {
+        showCuteAlert("Incorrect", "Invalid credentials.");
+      } else if (error.code === "auth/network-request-failed") {
+        showCuteAlert("Network issue", "Unable to connect.");
+      } else {
+        showCuteAlert("Login Failed", "Unable to connect. Please try again.");
+      }
+    } finally {
+      setLoading(false);
     }
-  } finally {
-    setLoading(false); // Stop loading regardless of success or fail
-  }
-};
+  };
 
   return (
     <KeyboardAvoidingView 
@@ -147,6 +158,7 @@ setLoading(true); // Start loading
         <View style={styles.formSection}>
           <Text style={styles.loginTitle}>Login</Text>
 
+          {/* Email Input */}
           <View style={styles.inputContainer}>
             <MaterialCommunityIcons name="email-outline" size={22} color="#888" style={styles.icon}/>
             <TextInput
@@ -160,6 +172,7 @@ setLoading(true); // Start loading
             />
           </View>
 
+          {/* Password Input */}
           <View style={styles.inputContainer}>
             <MaterialCommunityIcons name="lock-outline" size={22} color="#888" style={styles.icon}/>
             <TextInput
@@ -175,16 +188,27 @@ setLoading(true); // Start loading
             </TouchableOpacity>
           </View>
 
+          {/* Forgot Password Link */}
           <TouchableOpacity onPress={() => router.push("./forgetpassword" as any)}>
-            <Text style={{ color: "#C28748", fontSize: 15, fontWeight: "600", marginBottom: 15, marginLeft: 5 }}>
+            <Text style={styles.forgotText}>
               Forgot Password?
             </Text>
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.loginButton} onPress={handleLogin}>
-            <Text style={styles.loginButtonText}>LOGIN</Text>
+          {/* Login Button */}
+          <TouchableOpacity 
+            style={[styles.loginButton, { opacity: loading ? 0.8 : 1 }]} 
+            onPress={handleLogin}
+            disabled={loading}
+          >
+            {loading ? (
+              <ActivityIndicator color="#FFF" />
+            ) : (
+              <Text style={styles.loginButtonText}>LOGIN</Text>
+            )}
           </TouchableOpacity>
 
+          {/* Sign Up Link */}
           <View style={styles.footerRow}>
             <Text style={styles.footerText}>Don't have an account? </Text>
             <TouchableOpacity onPress={() => router.push("/role")}>
@@ -197,6 +221,7 @@ setLoading(true); // Start loading
   );
 };
 
+// Styles remain exactly as you provided
 const styles = StyleSheet.create({
   mainContainer: { flex: 1, backgroundColor: '#FFF9E9' },
   headerSection: { height: height * 0.35, justifyContent: 'center', paddingHorizontal: 30, zIndex: 1 },
@@ -209,61 +234,20 @@ const styles = StyleSheet.create({
   inputContainer: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFF', borderWidth: 1.5, borderColor: '#FDEFD9', borderRadius: 20, paddingHorizontal: 15, height: 60, marginBottom: 20 },
   icon: { marginRight: 10 },
   input: { flex: 1, fontSize: 16, color: '#333' },
+  forgotText: { color: "#C28748", fontSize: 15, fontWeight: "600", marginBottom: 25, marginLeft: 5 },
   loginButton: { backgroundColor: '#FFC26D', height: 65, borderRadius: 20, justifyContent: 'center', alignItems: 'center', shadowColor: '#FFC26D', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.3, shadowRadius: 10, elevation: 8 },
   loginButtonText: { color: '#FFFFFF', fontSize: 20, fontWeight: 'bold', letterSpacing: 1 },
   footerRow: { flexDirection: 'row', justifyContent: 'center', marginTop: 25, marginBottom: 30 },
   footerText: { color: '#666', fontSize: 15 },
   signUpText: { color: '#D19E67', fontSize: 15, fontWeight: 'bold' },
 
-  // --- Cute Modal Styles ---
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.4)', // Darker background to focus on modal
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  modalContainer: {
-    width: width * 0.8,
-    backgroundColor: '#FFF9E9', // Match app cream color
-    borderRadius: 30,
-    padding: 25,
-    alignItems: 'center',
-    borderWidth: 4,
-    borderColor: '#FFC26D', // Soft orange border
-  },
-  iconCircle: {
-    width: 70,
-    height: 70,
-    borderRadius: 35,
-    backgroundColor: '#FFF',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 15,
-  },
-  modalTitle: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#E87D88', // Pink
-    marginBottom: 10,
-  },
-  modalMessage: {
-    fontSize: 16,
-    color: '#B48454', // Brown
-    textAlign: 'center',
-    lineHeight: 22,
-    marginBottom: 20,
-  },
-  modalButton: {
-    backgroundColor: '#FFC26D',
-    paddingVertical: 12,
-    paddingHorizontal: 40,
-    borderRadius: 20,
-  },
-  modalButtonText: {
-    color: '#FFF',
-    fontSize: 18,
-    fontWeight: 'bold',
-  },
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'center', alignItems: 'center' },
+  modalContainer: { width: width * 0.8, backgroundColor: '#FFF9E9', borderRadius: 30, padding: 25, alignItems: 'center', borderWidth: 4, borderColor: '#FFC26D' },
+  iconCircle: { width: 70, height: 70, borderRadius: 35, backgroundColor: '#FFF', justifyContent: 'center', alignItems: 'center', marginBottom: 15 },
+  modalTitle: { fontSize: 24, fontWeight: 'bold', color: '#E87D88', marginBottom: 10 },
+  modalMessage: { fontSize: 16, color: '#B48454', textAlign: 'center', lineHeight: 22, marginBottom: 20 },
+  modalButton: { backgroundColor: '#FFC26D', paddingVertical: 12, paddingHorizontal: 40, borderRadius: 20 },
+  modalButtonText: { color: '#FFF', fontSize: 18, fontWeight: 'bold' },
 });
 
 export default LoginScreen;
