@@ -66,9 +66,16 @@ export default function AcademicMain({ role }: { role: 'parent' | 'teacher' }) {
       
       {/* ADDED: Back Button and Header Row */}
       <View style={styles.topNavigation}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-          <Ionicons name="arrow-back" size={28} color="#444" />
-        </TouchableOpacity>
+      <TouchableOpacity
+  onPress={() => {
+    // Navigate to parent or teacher main page
+    const mainPage = role === 'parent' ? '/parent/main' : '/teacher/main';
+    router.push(mainPage as any);
+  }}
+  style={styles.backButton}
+>
+  <Ionicons name="arrow-back" size={28} color="#444" />
+</TouchableOpacity>
         <View style={styles.headerArea}>
            <Text style={styles.mainTitle}>Pick your Class</Text>
            <Text style={styles.subTitle}>Select your level to start learning!</Text>

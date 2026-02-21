@@ -49,11 +49,25 @@ export default function SubjectSelection({ role }: SubjectProps) {
   return (
     <SafeAreaView style={styles.container}>
       <MainHeader role={role} />
+      
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backCircle}>
-            <Ionicons name="arrow-back" size={28} color="#FFF" />
-        </TouchableOpacity>
-        <View style={styles.gradeBadge}><Text style={styles.gradeBadgeText}>{grade}</Text></View>
+     <TouchableOpacity
+  onPress={() => {
+    // Explicitly navigate back to academic.tsx page
+    router.push({
+      pathname: role === 'parent' ? '/parent/academic/academic' : '/teacher/academic/academic',
+      // optional: you can pass grade if needed, or just remove params
+      params: { grade }
+    });
+  }}
+  style={styles.backCircle}
+>
+  <Ionicons name="arrow-back" size={28} color="#FFF" />
+</TouchableOpacity>
+
+        <View style={styles.gradeBadge}>
+          <Text style={styles.gradeBadgeText}>{grade}</Text>
+        </View>
       </View>
 
       <Text style={styles.title}>Pick a Subject</Text>
