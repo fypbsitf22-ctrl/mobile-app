@@ -11,14 +11,17 @@ export default function MainHeaderShared({ role }: { role: 'parent' | 'teacher' 
   const [userData, setUserData] = useState<any>(null);
 
   useEffect(() => {
-    const user = auth.currentUser;
-    if (!user || role === 'teacher') return;
+  const user = auth.currentUser;
+  if (!user) return;
 
+    // Now fetching for BOTH parent and teacher
     const unsubscribe = onSnapshot(doc(db, "users", user.uid), (docSnap) => {
-      if (docSnap.exists()) setUserData(docSnap.data());
-    });
-    return () => unsubscribe();
-  }, []);
+    if (docSnap.exists()) {
+      setUserData(docSnap.data());
+    }
+  });
+  return () => unsubscribe();
+}, []);
 
   const isTeacher = role === 'teacher';
 
@@ -32,8 +35,11 @@ export default function MainHeaderShared({ role }: { role: 'parent' | 'teacher' 
             style={styles.buddyCircle} 
             onPress={() => router.push(`/${role}/userprofile` as any)}
           >
-            {isTeacher ? (
-              <Ionicons name="school" size={30} color="#A2D2FF" />
+            {/* If Teacher has a profileImage, show it. Otherwise show icon */}
+            {userData?.profileImage ? (
+               <Image source={{ uri: userData.profileImage }} style={styles.profileImg} />
+            ) : isTeacher ? (
+              <Ionicons name="person" size={30} color="#A2D2FF" />
             ) : (
               userData?.selectedBuddy?.endsWith('.json') ? (
                 <LottieView source={{ uri: userData.selectedBuddy }} autoPlay loop style={styles.buddyImg} />
@@ -47,7 +53,10 @@ export default function MainHeaderShared({ role }: { role: 'parent' | 'teacher' 
           </TouchableOpacity>
           <View style={styles.textColumn}>
             <Text style={styles.helloText}>Hello {isTeacher ? 'Teacher' : 'Little'} 👋</Text>
-            <Text style={styles.nameText}>{isTeacher ? 'Administrator' : (userData?.name || 'Learner')}</Text>
+            {/* Fetches dynamic name from Firestore */}
+          <Text style={styles.nameText}>
+  {isTeacher ? (userData?.name || 'Instructor') : (userData?.name || 'Learner')}
+</Text>
           </View>
         </View>
 
@@ -67,62 +76,30 @@ export default function MainHeaderShared({ role }: { role: 'parent' | 'teacher' 
 }
 
 const styles = StyleSheet.create({
+  // ... existing styles ...
   headerContainer: {
     backgroundColor: '#FFF',
-    borderBottomLeftRadius: 40, // Curved corners below
+    borderBottomLeftRadius: 40,
     borderBottomRightRadius: 40,
     paddingHorizontal: 20,
-    paddingTop: 10,
+    paddingTop: 50, // Adjusted for status bar
     paddingBottom: 20,
     elevation: 10,
     shadowColor: '#000',
     shadowOpacity: 0.1,
     shadowRadius: 10,
   },
-  contentRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  leftSection: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
+  contentRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  leftSection: { flexDirection: 'row', alignItems: 'center' },
   buddyCircle: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    backgroundColor: '#FFF9E9',
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 2,
-    borderColor: '#FFC26D',
-    overflow: 'hidden',
+    width: 60, height: 60, borderRadius: 30, backgroundColor: '#FFF9E9',
+    justifyContent: 'center', alignItems: 'center', borderWidth: 2, borderColor: '#FFC26D', overflow: 'hidden',
   },
-  buddyImg: {
-    width: 45,
-    height: 45,
-  },
-  textColumn: {
-    marginLeft: 12,
-  },
-  helloText: {
-    fontSize: 14,
-    color: '#888',
-    fontWeight: '600',
-  },
-  nameText: {
-    fontSize: 18,
-    fontWeight: '900',
-    color: '#444',
-  },
-  rightSection: {
-    flexDirection: 'row',
-  },
-  iconBtn: {
-    marginLeft: 15,
-    backgroundColor: '#FFF9E9',
-    padding: 8,
-    borderRadius: 12,
-  }
+  buddyImg: { width: 45, height: 45 },
+  profileImg: { width: '100%', height: '100%', borderRadius: 30 }, // Full cover for teacher DP
+  textColumn: { marginLeft: 12 },
+  helloText: { fontSize: 14, color: '#888', fontWeight: '600' },
+  nameText: { fontSize: 18, fontWeight: '900', color: '#444' },
+  rightSection: { flexDirection: 'row' },
+  iconBtn: { marginLeft: 15, backgroundColor: '#FFF9E9', padding: 8, borderRadius: 12 }
 });
