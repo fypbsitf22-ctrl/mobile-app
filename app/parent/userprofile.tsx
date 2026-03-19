@@ -1,24 +1,13 @@
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { signOut } from 'firebase/auth';
-import { doc, onSnapshot, updateDoc } from 'firebase/firestore'; // Added updateDoc
+import { doc, onSnapshot, updateDoc } from 'firebase/firestore';
 import LottieView from 'lottie-react-native';
 import React, { useEffect, useState } from 'react';
 import {
-  ActivityIndicator,
-  Alert,
-  Dimensions,
-  Image, // Added
-  KeyboardAvoidingView,
-  Modal, // Added
-  Platform,
-  ScrollView,
-  StatusBar,
-  StyleSheet,
-  Text, // Added
-  TextInput,
-  TouchableOpacity,
-  View
+  ActivityIndicator, Alert, Dimensions, Image, KeyboardAvoidingView,
+  Modal, Platform, ScrollView, StatusBar, StyleSheet, Text,
+  TextInput, TouchableOpacity, View
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { auth, db } from '../../firebaseConfig';
@@ -30,7 +19,6 @@ export default function UserProfile() {
   const [userData, setUserData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   
-  // States for Editing Name
   const [isModalVisible, setIsModalVisible] = useState(false);
   const [newName, setNewName] = useState('');
   const [updating, setUpdating] = useState(false);
@@ -40,14 +28,23 @@ export default function UserProfile() {
     if (!user) return;
 
     const userRef = doc(db, "users", user.uid);
-    const unsubscribe = onSnapshot(userRef, (docSnap) => {
-      if (docSnap.exists()) {
-        const data = docSnap.data();
-        setUserData(data);
-        setNewName(data.name || ''); // Initialize input with current name
+
+    const unsubscribe = onSnapshot(
+      userRef, 
+      (docSnap) => {
+        if (docSnap.exists()) {
+          const data = docSnap.data();
+          setUserData(data);
+          setNewName(data.name || '');
+        }
+        setLoading(false);
+      },
+      (error) => {
+        if (error.code === 'permission-denied') {
+          console.log("Firestore listener detached safely during logout.");
+        }
       }
-      setLoading(false);
-    });
+    );
 
     return () => unsubscribe();
   }, []);
@@ -62,40 +59,30 @@ export default function UserProfile() {
     try {
       const user = auth.currentUser;
       if (user) {
-        await updateDoc(doc(db, "users", user.uid), {
-          name: newName.trim()
-        });
+        await updateDoc(doc(db, "users", user.uid), { name: newName.trim() });
         setIsModalVisible(false);
       }
     } catch (error) {
-      console.error(error);
-      Alert.alert("Error", "Could not update name. Try again!");
+      Alert.alert("Error", "Could not update name.");
     } finally {
       setUpdating(false);
     }
   };
 
-const handleLogout = () => {
-  Alert.alert("Logout", "Are you sure you want to exit the parent panel?", [
-    { text: "No", style: "cancel" },
-    { 
-      text: "Yes", 
-      onPress: async () => { 
-        try {
-          // 1. Navigate to login FIRST
-          router.replace('/login'); 
-          
-          // 2. Small delay to let the navigation finish
-          setTimeout(async () => {
-             await signOut(auth); 
-          }, 500);
-        } catch (e) {
-          console.log("Logout error:", e);
-        }
-      } 
-    }
-  ]);
-};
+  const handleLogout = () => {
+    Alert.alert("Logout", "Are you sure you want to exit?", [
+      { text: "No", style: "cancel" },
+      { 
+        text: "Yes", 
+        onPress: async () => { 
+          try {
+            router.replace('/login'); 
+            setTimeout(async () => { await signOut(auth); }, 500);
+          } catch (e) { console.log(e); }
+        } 
+      }
+    ]);
+  };
 
   if (loading) {
     return (
@@ -109,40 +96,17 @@ const handleLogout = () => {
     <SafeAreaView style={styles.container} edges={['top']}>
       <StatusBar barStyle="dark-content" />
       
-      {/* --- EDIT NAME MODAL --- */}
       <Modal visible={isModalVisible} transparent animationType="fade">
         <View style={styles.modalOverlay}>
-          <KeyboardAvoidingView 
-            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-            style={styles.modalContent}
-          >
+          <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.modalContent}>
             <Text style={styles.modalTitle}>Change My Name ✨</Text>
-            <TextInput
-              style={styles.textInput}
-              value={newName}
-              onChangeText={setNewName}
-              placeholder="Enter your name"
-              maxLength={15}
-              autoFocus
-            />
+            <TextInput style={styles.textInput} value={newName} onChangeText={setNewName} placeholder="Enter your name" maxLength={15} autoFocus />
             <View style={styles.modalButtons}>
-              <TouchableOpacity 
-                style={[styles.modalBtn, { backgroundColor: '#DDD' }]} 
-                onPress={() => setIsModalVisible(false)}
-              >
+              <TouchableOpacity style={[styles.modalBtn, { backgroundColor: '#DDD' }]} onPress={() => setIsModalVisible(false)}>
                 <Text style={styles.modalBtnText}>Cancel</Text>
               </TouchableOpacity>
-              
-              <TouchableOpacity 
-                style={[styles.modalBtn, { backgroundColor: '#FFC26D' }]} 
-                onPress={handleUpdateName}
-                disabled={updating}
-              >
-                {updating ? (
-                  <ActivityIndicator color="#FFF" />
-                ) : (
-                  <Text style={styles.modalBtnText}>Save</Text>
-                )}
+              <TouchableOpacity style={[styles.modalBtn, { backgroundColor: '#FFC26D' }]} onPress={handleUpdateName} disabled={updating}>
+                {updating ? <ActivityIndicator color="#FFF" /> : <Text style={styles.modalBtnText}>Save</Text>}
               </TouchableOpacity>
             </View>
           </KeyboardAvoidingView>
@@ -164,11 +128,7 @@ const handleLogout = () => {
             {userData?.selectedBuddy?.endsWith('.json') ? (
               <LottieView source={{ uri: userData.selectedBuddy }} autoPlay loop style={styles.buddyImage} />
             ) : (
-              <Image 
-                source={userData?.selectedBuddy ? { uri: userData.selectedBuddy } : require('../../assets/images/animals.png')} 
-                style={styles.buddyImage}
-                resizeMode="contain"
-              />
+              <Image source={userData?.selectedBuddy ? { uri: userData.selectedBuddy } : require('../../assets/images/animals.png')} style={styles.buddyImage} resizeMode="contain" />
             )}
           </View>
           <Text style={styles.userName}>{userData?.name || "Little Learner"}</Text>
@@ -176,7 +136,17 @@ const handleLogout = () => {
         </View>
 
         <View style={styles.infoContainer}>
-          {/* CLICKABLE NAME CARD */}
+          {/* TEACHER CODE DISPLAY (NEW) */}
+          <View style={styles.infoCard}>
+            <View style={[styles.iconBox, { backgroundColor: '#E0F2F1' }]}>
+              <Ionicons name="school" size={24} color="#009688" />
+            </View>
+            <View style={styles.infoTextWrap}>
+              <Text style={styles.infoLabel}>Linked Teacher Code</Text>
+              <Text style={[styles.infoValue, { fontSize: 13, color: '#009688' }]}>{userData?.teacherId || "Not Connected"}</Text>
+            </View>
+          </View>
+
           <TouchableOpacity style={styles.infoCard} onPress={() => setIsModalVisible(true)}>
             <View style={[styles.iconBox, { backgroundColor: '#E8E0FF' }]}>
               <Ionicons name="person" size={24} color="#7E57C2" />
@@ -231,12 +201,12 @@ const styles = StyleSheet.create({
   backBtn: { padding: 5 },
   scrollContent: { paddingBottom: 40 },
   buddySection: { alignItems: 'center', marginTop: 10, marginBottom: 30 },
-  buddyCircle: { width: 140, height: 140, borderRadius: 70, backgroundColor: '#FFF', borderWidth: 5, borderColor: '#FFC26D', justifyContent: 'center', alignItems: 'center', elevation: 10, shadowColor: '#FFC26D', shadowOffset: { width: 0, height: 5 }, shadowOpacity: 0.3, shadowRadius: 10 },
+  buddyCircle: { width: 140, height: 140, borderRadius: 70, backgroundColor: '#FFF', borderWidth: 5, borderColor: '#FFC26D', justifyContent: 'center', alignItems: 'center' },
   buddyImage: { width: 100, height: 100 },
   userName: { fontSize: 28, fontWeight: '900', color: '#E87D88', marginTop: 15 },
   userEmail: { fontSize: 16, color: '#B48454', opacity: 0.8 },
   infoContainer: { paddingHorizontal: 25 },
-  infoCard: { backgroundColor: '#FFF', borderRadius: 25, padding: 15, flexDirection: 'row', alignItems: 'center', marginBottom: 15, elevation: 3, shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 5 },
+  infoCard: { backgroundColor: '#FFF', borderRadius: 25, padding: 15, flexDirection: 'row', alignItems: 'center', marginBottom: 15 },
   iconBox: { width: 50, height: 50, borderRadius: 15, justifyContent: 'center', alignItems: 'center' },
   infoTextWrap: { marginLeft: 15 },
   infoLabel: { fontSize: 14, color: '#888', fontWeight: '600' },
@@ -246,8 +216,6 @@ const styles = StyleSheet.create({
   editBtnText: { color: '#FFF', fontSize: 20, fontWeight: 'bold' },
   logoutBtn: { flexDirection: 'row', height: 60, borderRadius: 20, borderWidth: 2, borderColor: '#E87D88', justifyContent: 'center', alignItems: 'center' },
   logoutBtnText: { color: '#E87D88', fontSize: 18, fontWeight: 'bold', marginLeft: 10 },
-  
-  // Modal Styles
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' },
   modalContent: { width: '85%', backgroundColor: '#FFF', borderRadius: 30, padding: 25, alignItems: 'center' },
   modalTitle: { fontSize: 22, fontWeight: 'bold', color: '#B48454', marginBottom: 20 },

@@ -16,6 +16,9 @@ export default function GKMain({ role }: { role: 'parent' | 'teacher' }) {
   const [loading, setLoading] = useState(true);
   const [hasError, setHasError] = useState(false);
 
+  // Helper function for the audio delay
+  const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
   const fetchCategories = () => {
     setLoading(true);
     setHasError(false);
@@ -37,27 +40,37 @@ export default function GKMain({ role }: { role: 'parent' | 'teacher' }) {
   }, []);
 
   const handlePress = async (item: any) => {
-    const basePath = role === 'parent' ? '/parent/gk' : '/teacher/gk';
+    // Audio Logic from Sample
     if (item.audio) {
       try {
-        const { sound } = await Audio.Sound.createAsync({ uri: item.audio });
-        await sound.playAsync();
-      } catch (error) { console.log("Audio error", error); }
+        const { sound } = await Audio.Sound.createAsync(
+          { uri: item.audio },
+          { shouldPlay: true }
+        );
+        await delay(1200); 
+        await sound.unloadAsync();
+      } catch (error) { 
+        console.log("Audio error", error); 
+      }
+    } else {
+      await delay(200);
     }
-    setTimeout(() => {
-      router.push({ 
-        pathname: `${basePath}/categorydetail` as any, 
-        params: { catId: item.id, title: item.name } 
-      });
-    }, 500);
+
+    const basePath = role === 'parent' ? '/parent/gk' : '/teacher/gk';
+    router.push({ 
+      pathname: `${basePath}/categorydetail` as any, 
+      params: { catId: item.id, title: item.name } 
+    });
   };
 
   const renderCategory = ({ item }: any) => (
     <TouchableOpacity style={styles.card} onPress={() => handlePress(item)} activeOpacity={0.8}>
-      <View style={styles.imageContainer}>
+      <View style={styles.whiteBox}>
         <Image source={{ uri: item.image }} style={styles.cardImage} resizeMode="contain" />
+        <View style={styles.cardFooter}>
+          <Text style={styles.cardText} numberOfLines={1}>{item.name}</Text>
+        </View>
       </View>
-      <View style={styles.textWrapper}><Text style={styles.cardText}>{item.name}</Text></View>
     </TouchableOpacity>
   );
 
@@ -78,7 +91,15 @@ export default function GKMain({ role }: { role: 'parent' | 'teacher' }) {
           <TouchableOpacity style={styles.backCircle} onPress={fetchCategories}><Ionicons name="refresh" size={24} color="#FFF" /></TouchableOpacity>
         </View>
       ) : (
-        <FlatList data={categories} keyExtractor={item => item.id} numColumns={2} renderItem={renderCategory} columnWrapperStyle={styles.row} contentContainerStyle={styles.listPadding} showsVerticalScrollIndicator={false} />
+        <FlatList 
+          data={categories} 
+          keyExtractor={item => item.id} 
+          numColumns={2} 
+          renderItem={renderCategory} 
+          columnWrapperStyle={styles.row} 
+          contentContainerStyle={styles.listPadding} 
+          showsVerticalScrollIndicator={false} 
+        />
       )}
     </SafeAreaView>
   );
@@ -91,10 +112,23 @@ const styles = StyleSheet.create({
   titleBadge: { backgroundColor: '#FCE4EC', flex: 1, marginLeft: 15, paddingVertical: 12, borderRadius: 30, alignItems: 'center', elevation: 2 },
   headerTitle: { fontSize: 22, fontWeight: 'bold', color: '#7E57C2' },
   row: { justifyContent: 'space-between', paddingHorizontal: 20 },
-  listPadding: { paddingBottom: 30 },
-  card: { backgroundColor: '#FCE4EC', width: width * 0.42, borderRadius: 35, padding: 15, alignItems: 'center', marginBottom: 20, elevation: 6, shadowColor: '#000', shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.2, shadowRadius: 5 },
-  imageContainer: { backgroundColor: '#FFF', width: '90%', height: width * 0.28, borderRadius: 25, justifyContent: 'center', alignItems: 'center', marginBottom: 10 },
-  cardImage: { width: '75%', height: '75%' },
-  textWrapper: { paddingHorizontal: 15, paddingVertical: 5, width: '100%' },
-  cardText: { fontSize: 18, fontWeight: 'bold', color: '#E87D88', textAlign: 'center' }
+  listPadding: { paddingBottom: 30, paddingTop: 10 },
+  
+  // Card styles modified to match sample code exactly
+  card: { width: width * 0.43, marginTop: 20 },
+  whiteBox: { 
+    backgroundColor: '#FFF', 
+    borderRadius: 30, 
+    padding: 15, 
+    alignItems: 'center', 
+    elevation: 5, 
+    position: 'relative',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+  },
+  cardImage: { width: '100%', height: 110, marginBottom: 10 },
+  cardFooter: { alignItems: 'center' },
+  cardText: { fontSize: 18, fontWeight: 'bold', color: '#444', textAlign: 'center' }
 });

@@ -17,6 +17,9 @@ export default function GKCategoryDetail({ role }: { role: 'parent' | 'teacher' 
   const [completedIds, setCompletedIds] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
 
+  // Helper function for the delay
+  const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
   useEffect(() => {
     if (!catId) return;
     const q = query(collection(db, "gk_items"), where("categoryID", "==", catId), orderBy("uploaded", "desc"));
@@ -26,7 +29,6 @@ export default function GKCategoryDetail({ role }: { role: 'parent' | 'teacher' 
     });
 
     const user = auth.currentUser;
-    // FETCH for BOTH roles so Teacher UI shows checkmarks if they exist
     if (user) {
       const unsubUser = onSnapshot(doc(db, "users", user.uid), (docSnap) => {
         if (docSnap.exists()) setCompletedIds(docSnap.data().completedLessons || []);
@@ -37,34 +39,70 @@ export default function GKCategoryDetail({ role }: { role: 'parent' | 'teacher' 
   }, [catId]);
 
   const handleItemPress = async (item: any, index: number) => {
-    const basePath = role === 'parent' ? '/parent/gk' : '/teacher/gk';
+    // Audio Logic from Sample
     if (item.audio) {
-      try { const { sound } = await Audio.Sound.createAsync({ uri: item.audio }); await sound.playAsync(); } catch (e) {}
+      try { 
+        const { sound } = await Audio.Sound.createAsync(
+            { uri: item.audio },
+            { shouldPlay: true }
+        ); 
+        await delay(1200);
+        await sound.unloadAsync();
+      } catch (e) {
+        console.log("Audio Error:", e);
+      }
+    } else {
+        await delay(200);
     }
-    router.push({ pathname: `${basePath}/learningcard` as any, params: { catId, startIndex: index, itemId: item.id } });
+    
+    const basePath = role === 'parent' ? '/parent/gk' : '/teacher/gk';
+    router.push({ 
+        pathname: `${basePath}/learningcard` as any, 
+        params: { catId, startIndex: index, itemId: item.id } 
+    });
   };
 
-  const renderItem = ({ item, index }: any) => (
-    <TouchableOpacity style={styles.card} onPress={() => handleItemPress(item, index)}>
-      <View style={styles.imageContainer}><Image source={{ uri: item.image }} style={styles.cardImage} resizeMode="contain" /></View>
-      <View style={styles.textWrapper}>
-        <View style={styles.nameRow}>
-          <Text style={styles.cardText}>{item.name}</Text>
-          {completedIds.includes(item.id) && <Ionicons name="checkmark-circle" size={18} color="#4CAF50" style={{ marginLeft: 5 }} />}
+  const renderItem = ({ item, index }: any) => {
+    const isCompleted = completedIds.includes(item.id);
+
+    return (
+      <TouchableOpacity style={styles.card} onPress={() => handleItemPress(item, index)}>
+        <View style={styles.whiteBox}>
+          {isCompleted && (
+            <View style={styles.starBadge}>
+              <Ionicons name="star" size={20} color="#FFD700" />
+            </View>
+          )}
+          <Image source={{ uri: item.image }} style={styles.cardImage} resizeMode="contain" />
+          <View style={styles.cardFooter}>
+            <Text style={styles.cardText} numberOfLines={1}>{item.name}</Text>
+          </View>
         </View>
-      </View>
-    </TouchableOpacity>
-  );
+      </TouchableOpacity>
+    );
+  };
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <MainHeader role={role} />
       <View style={styles.headerRow}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backCircle}><Ionicons name="arrow-back" size={28} color="#FFF" /></TouchableOpacity>
+        <TouchableOpacity onPress={() => router.back()} style={styles.backCircle}>
+          <Ionicons name="arrow-back" size={28} color="#FFF" />
+        </TouchableOpacity>
         <View style={styles.titleBadge}><Text style={styles.headerTitle}>{title}</Text></View>
       </View>
-      {loading ? <ActivityIndicator size="large" color="#7E57C2" style={{ marginTop: 50 }} /> : (
-        <FlatList data={items} numColumns={2} keyExtractor={(item) => item.id} renderItem={renderItem} columnWrapperStyle={styles.row} contentContainerStyle={styles.listPadding} showsVerticalScrollIndicator={false} />
+      {loading ? (
+        <ActivityIndicator size="large" color="#7E57C2" style={{ marginTop: 50 }} />
+      ) : (
+        <FlatList 
+            data={items} 
+            numColumns={2} 
+            keyExtractor={(item) => item.id} 
+            renderItem={renderItem} 
+            columnWrapperStyle={styles.row} 
+            contentContainerStyle={styles.listPadding} 
+            showsVerticalScrollIndicator={false} 
+        />
       )}
     </SafeAreaView>
   );
@@ -77,11 +115,34 @@ const styles = StyleSheet.create({
   titleBadge: { backgroundColor: '#FCE4EC', flex: 1, marginLeft: 15, paddingVertical: 12, borderRadius: 30, alignItems: 'center', elevation: 2 },
   headerTitle: { fontSize: 22, fontWeight: 'bold', color: '#7E57C2' },
   row: { justifyContent: 'space-between', paddingHorizontal: 20 },
-  listPadding: { paddingBottom: 30 },
-  card: { backgroundColor: '#FCE4EC', width: width * 0.42, borderRadius: 35, padding: 15, alignItems: 'center', marginBottom: 20, elevation: 6 },
-  imageContainer: { backgroundColor: '#FFF', width: '90%', height: width * 0.28, borderRadius: 25, justifyContent: 'center', alignItems: 'center', marginBottom: 10 },
-  cardImage: { width: '75%', height: '75%' },
-  textWrapper: { paddingHorizontal: 15, paddingVertical: 5, width: '100%' },
-  nameRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center' },
-  cardText: { fontSize: 18, fontWeight: 'bold', color: '#E87D88', textAlign: 'center' }
+  listPadding: { paddingBottom: 30, paddingTop: 10 },
+  
+  // Updated Styles to match Sample
+  card: { width: width * 0.43, marginTop: 20 },
+  whiteBox: { 
+    backgroundColor: '#FFF', 
+    borderRadius: 30, 
+    padding: 15, 
+    alignItems: 'center', 
+    elevation: 5, 
+    position: 'relative',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+  },
+  cardImage: { width: '100%', height: 110, marginBottom: 10 },
+  cardFooter: { alignItems: 'center' },
+  cardText: { fontSize: 18, fontWeight: 'bold', color: '#444', textAlign: 'center' },
+  starBadge: { 
+    position: 'absolute', 
+    top: -10, 
+    right: -10, 
+    backgroundColor: '#FFF', 
+    padding: 5, 
+    borderRadius: 20, 
+    elevation: 8, 
+    borderWidth: 2, 
+    borderColor: '#FFD700' 
+  }
 });

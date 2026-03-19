@@ -1,8 +1,9 @@
 import { Ionicons, MaterialIcons } from '@expo/vector-icons';
+import * as Clipboard from 'expo-clipboard';
 import * as ImagePicker from 'expo-image-picker';
 import { useRouter } from 'expo-router';
-import { signOut, updateEmail } from 'firebase/auth'; // Import updateEmail
-import { doc, getDoc, updateDoc } from 'firebase/firestore';
+import { signOut, updateEmail } from 'firebase/auth';
+import { doc, onSnapshot, updateDoc } from 'firebase/firestore';
 import React, { useEffect, useState } from 'react';
 import {
   ActivityIndicator, Alert, Image, Modal, ScrollView,
@@ -16,7 +17,6 @@ export default function TeacherProfile() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   
-  // Separate editing states for better control
   const [isEditingName, setIsEditingName] = useState(false);
   const [isEditingEmail, setIsEditingEmail] = useState(false);
   
@@ -27,19 +27,44 @@ export default function TeacherProfile() {
   const [tempImage, setTempImage] = useState<string | null>(null);
   const [showPreview, setShowPreview] = useState(false);
 
+  // CORRECTED: Real-time listener with Error Handling
   useEffect(() => {
-    fetchUserData();
+    const user = auth.currentUser;
+    if (!user) return;
+
+    const userRef = doc(db, "users", user.uid);
+
+    const unsubscribe = onSnapshot(
+      userRef, 
+      (docSnap) => {
+        // Only update if the user is still logged in
+        if (docSnap.exists() && auth.currentUser) {
+          const data = docSnap.data();
+          setName(data.name || '');
+          setProfileImage(data.profileImage || null);
+          setEmail(data.email || user.email || '');
+        }
+      },
+      (error) => {
+        // This is the fix for your error. It catches the permission loss during logout.
+        if (error.code === 'permission-denied') {
+          console.log("Teacher profile listener detached safely.");
+        }
+      }
+    );
+
+    return () => unsubscribe();
   }, []);
 
-  const fetchUserData = async () => {
-    const user = auth.currentUser;
-    if (user) {
-      setEmail(user.email || '');
-      const docSnap = await getDoc(doc(db, "users", user.uid));
-      if (docSnap.exists()) {
-        setName(docSnap.data().name || '');
-        setProfileImage(docSnap.data().profileImage || null);
+  const copyToClipboard = async () => {
+    try {
+      const code = auth.currentUser?.uid;
+      if (code) {
+        await Clipboard.setStringAsync(code);
+        Alert.alert("Copied! ✅", "Classroom code copied to clipboard.");
       }
+    } catch (err) {
+      Alert.alert("Error", "Could not copy code.");
     }
   };
 
@@ -78,7 +103,6 @@ export default function TeacherProfile() {
       const publicUrl = urlData.publicUrl;
 
       await updateDoc(doc(db, "users", user!.uid), { profileImage: publicUrl });
-      setProfileImage(publicUrl);
       Alert.alert("Success", "Profile photo updated!");
     } catch (error: any) {
       Alert.alert("Upload Error", error.message);
@@ -87,7 +111,6 @@ export default function TeacherProfile() {
     }
   };
 
-  // Function to save Name
   const handleUpdateName = async () => {
     if (!name.trim()) return Alert.alert("Error", "Name is required");
     setLoading(true);
@@ -102,37 +125,50 @@ export default function TeacherProfile() {
     }
   };
 
-  // Function to save Email (Updates Auth + Firestore)
   const handleUpdateEmail = async () => {
     if (!email.trim() || !email.includes('@')) return Alert.alert("Error", "Valid email is required");
     setLoading(true);
     try {
       const user = auth.currentUser;
       if (user) {
-        // 1. Update in Firebase Authentication
         await updateEmail(user, email);
-        
-        // 2. Update in Firestore Database
         await updateDoc(doc(db, "users", user.uid), { email: email });
-        
         setIsEditingEmail(false);
         Alert.alert("Success", "Email updated successfully!");
       }
     } catch (e: any) {
-      if (e.code === 'auth/requires-recent-login') {
-        Alert.alert("Security", "Please logout and login again to change your email for security reasons.");
-      } else {
-        Alert.alert("Error", e.message);
-      }
+      Alert.alert("Error", e.message);
     } finally {
       setLoading(false);
     }
   };
 
+  // Dedicated Logout function to prevent errors
+  const handleLogout = () => {
+    Alert.alert("Logout", "Are you sure you want to exit?", [
+      { text: "Cancel", style: "cancel" },
+      { 
+        text: "Logout", 
+        style: "destructive",
+        onPress: async () => {
+          try {
+            // Navigate to login FIRST to unmount this screen and stop listeners
+            router.replace('/login'); 
+            // Sign out after a small delay
+            setTimeout(async () => {
+              await signOut(auth); 
+            }, 500);
+          } catch (e) {
+            console.log("Logout error:", e);
+          }
+        }
+      }
+    ]);
+  };
+
   return (
     <SafeAreaView style={styles.container}>
       
-      {/* PREVIEW MODAL */}
       <Modal visible={showPreview} animationType="slide" transparent={false}>
         <SafeAreaView style={styles.previewContainer}>
           <View style={styles.previewHeader}>
@@ -154,7 +190,6 @@ export default function TeacherProfile() {
         </SafeAreaView>
       </Modal>
 
-      {/* LOADING OVERLAY */}
       {loading && (
         <View style={styles.overlay}>
           <ActivityIndicator size="large" color="#4F46E5" />
@@ -162,7 +197,6 @@ export default function TeacherProfile() {
         </View>
       )}
 
-      {/* HEADER */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backBtnCircle}>
           <Ionicons name="chevron-back" size={24} color="#1E293B" />
@@ -189,7 +223,16 @@ export default function TeacherProfile() {
         </View>
 
         <View style={styles.formContainer}>
-           {/* NAME FIELD */}
+           <Text style={styles.inputLabel}>MY CLASSROOM CODE (Share with Students)</Text>
+           <TouchableOpacity 
+             style={[styles.inputRow, { backgroundColor: '#EEF2FF', borderColor: '#4F46E5' }]}
+             onPress={copyToClipboard}
+             activeOpacity={0.7}
+           >
+              <Text style={[styles.nameInput, { color: '#4F46E5' }]}>{auth.currentUser?.uid || 'Loading...'}</Text>
+              <Ionicons name="copy-outline" size={20} color="#4F46E5" />
+           </TouchableOpacity>
+
            <Text style={styles.inputLabel}>DISPLAY NAME</Text>
            <View style={styles.inputRow}>
               <TextInput 
@@ -203,7 +246,6 @@ export default function TeacherProfile() {
               </TouchableOpacity>
            </View>
 
-           {/* EMAIL FIELD - NOW UNLOCKED */}
            <Text style={styles.inputLabel}>EMAIL ADDRESS</Text>
            <View style={styles.inputRow}>
               <TextInput 
@@ -222,7 +264,7 @@ export default function TeacherProfile() {
 
         <TouchableOpacity 
           style={styles.signOutRow} 
-          onPress={async () => { await signOut(auth); router.replace('/login'); }}
+          onPress={handleLogout}
         >
           <View style={styles.signOutIcon}>
             <MaterialIcons name="logout" size={22} color="#EF4444" />
@@ -249,7 +291,7 @@ const styles = StyleSheet.create({
   formContainer: { padding: 25 },
   inputLabel: { fontSize: 12, fontWeight: '900', color: '#94A3B8', marginBottom: 8, marginLeft: 5 },
   inputRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFF', paddingHorizontal: 15, height: 60, borderRadius: 18, marginBottom: 20, borderWidth: 1, borderColor: '#E2E8F0' },
-  nameInput: { flex: 1, fontSize: 16, fontWeight: '700', color: '#1E293B' },
+  nameInput: { flex: 1, fontSize: 14, fontWeight: '700', color: '#1E293B' },
   editBtnText: { color: '#4F46E5', fontWeight: '900', fontSize: 13 },
   signOutRow: { flexDirection: 'row', alignItems: 'center', padding: 20, marginHorizontal: 25, backgroundColor: '#FFF', borderRadius: 20, borderWidth: 1, borderColor: '#FEE2E2' },
   signOutIcon: { width: 40, height: 40, borderRadius: 12, backgroundColor: '#FFF1F2', justifyContent: 'center', alignItems: 'center', marginRight: 15 },
