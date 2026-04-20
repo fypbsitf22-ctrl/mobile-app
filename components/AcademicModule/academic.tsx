@@ -23,11 +23,6 @@ const SUBJECTS = [
   { id: 'Maths', name: 'Maths', color: '#FDE4E4', icon: 'calculator', textColor: '#E87D88', audio: require('../../assets/audio/maths.mp3') },
 ];
 
-const TYPES = [
-  { id: 'Reading', name: 'Reading', color: '#E0F9E9', icon: 'eye', textColor: '#66BB6A', audio: require('../../assets/audio/reading.mp3') },
-  { id: 'Writing', name: 'Writing', color: '#D4E9FF', icon: 'brush', textColor: '#5A9BD5', audio: require('../../assets/audio/writing.mp3') },
-];
-
 export default function AcademicMain({ role }: { role: 'parent' | 'teacher' }) {
   const router = useRouter();
   const params = useLocalSearchParams();
@@ -35,11 +30,10 @@ export default function AcademicMain({ role }: { role: 'parent' | 'teacher' }) {
   const soundRef = useRef<Audio.Sound | null>(null);
   const isProcessingAudio = useRef(false);
 
-  // Persistence: Initialize state from URL params if returning from contentlist
+  // Persistence: Removed 'type' from state, we will pass 'Reading' manually on navigation
   const [selection, setSelection] = useState({ 
     grade: (params.grade as string) || '', 
-    subject: (params.subject as string) || '', 
-    type: (params.type as string) || '' 
+    subject: (params.subject as string) || ''
   });
   
   const [voiceUrls, setVoiceUrls] = useState<any>(null);
@@ -59,7 +53,6 @@ export default function AcademicMain({ role }: { role: 'parent' | 'teacher' }) {
         if (snap.exists()) {
           const data = snap.data();
           setVoiceUrls(data);
-          // Only play start instruction if nothing is selected yet
           if (data.instruction1_url && !selection.grade) playAudio(data.instruction1_url, true);
         } else {
           setVoiceUrls({});
@@ -106,26 +99,21 @@ export default function AcademicMain({ role }: { role: 'parent' | 'teacher' }) {
   }
 
   const handleGradeSelect = (item: any) => {
-    setSelection({ grade: item.id, subject: '', type: '' });
+    setSelection({ grade: item.id, subject: '' });
     playAudio(item.audio, false);
     setTimeout(() => {
       if (voiceUrls?.instruction2_url) playAudio(voiceUrls.instruction2_url, true);
-      scrollRef.current?.scrollTo({ y: 150, animated: true });
+      scrollRef.current?.scrollTo({ y: 200, animated: true });
     }, 1500);
   };
 
   const handleSubjectSelect = (item: any) => {
-    setSelection(prev => ({ ...prev, subject: item.id, type: '' }));
+    setSelection(prev => ({ ...prev, subject: item.id }));
     playAudio(item.audio, false);
+    // After subject selection, we scroll to show the Start button
     setTimeout(() => {
-      if (voiceUrls?.instruction3_url) playAudio(voiceUrls.instruction3_url, true);
       scrollRef.current?.scrollToEnd({ animated: true });
-    }, 1500);
-  };
-
-  const handleTypeSelect = (item: any) => {
-    setSelection(prev => ({ ...prev, type: item.id }));
-    playAudio(item.audio, false);
+    }, 500);
   };
 
   const startLearning = async () => {
@@ -133,14 +121,14 @@ export default function AcademicMain({ role }: { role: 'parent' | 'teacher' }) {
       await playAudio(voiceUrls.instruction4_url, true);
     }
     
-    // Added a 2-second gap (2000ms) before navigation
     setTimeout(() => {
       const basePath = role === 'parent' ? '/parent/academic' : '/teacher/academic';
       router.push({
         pathname: `${basePath}/contentlist` as any,
-        params: { ...selection }
+        // TYPE is hardcoded to 'Reading' here
+        params: { ...selection, type: 'Reading' }
       });
-    }, 2000);
+    }, 1500);
   };
 
   const InstructionCard = ({ title, url }: { title: string, url: string }) => (
@@ -181,7 +169,7 @@ export default function AcademicMain({ role }: { role: 'parent' | 'teacher' }) {
         showsVerticalScrollIndicator={false}
       >
         
-        {/* STEP 1 */}
+        {/* STEP 1: CLASS */}
         <View style={styles.section}>
           <InstructionCard title="Choose your Class 🎓" url={voiceUrls.instruction1_url} />
           <View style={styles.grid}>
@@ -200,7 +188,7 @@ export default function AcademicMain({ role }: { role: 'parent' | 'teacher' }) {
           </View>
         </View>
 
-        {/* STEP 2 */}
+        {/* STEP 2: SUBJECT */}
         {selection.grade !== '' && (
           <View style={styles.section}>
             <InstructionCard title="Choose your Subject 📘" url={voiceUrls.instruction2_url} />
@@ -221,26 +209,8 @@ export default function AcademicMain({ role }: { role: 'parent' | 'teacher' }) {
           </View>
         )}
 
-        {/* STEP 3 */}
+        {/* START BUTTON appears after Subject is chosen */}
         {selection.subject !== '' && (
-          <View style={styles.section}>
-            <InstructionCard title="Select Reading or Writing ✍️" url={voiceUrls.instruction3_url} />
-            <View style={styles.typeRow}>
-              {TYPES.map((item) => (
-                <TouchableOpacity 
-                  key={item.id}
-                  style={[styles.typeCard, { backgroundColor: item.color }, selection.type === item.id && styles.selectedBorder]} 
-                  onPress={() => handleTypeSelect(item)}
-                >
-                  <Ionicons name={item.icon as any} size={50} color={item.textColor} />
-                  <Text style={[styles.typeText, { color: item.textColor }]}>{item.name}</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-          </View>
-        )}
-
-        {selection.type !== '' && (
           <TouchableOpacity style={styles.startBtn} onPress={startLearning}>
             <Text style={styles.startBtnText}>Start Learning 🚀</Text>
           </TouchableOpacity>
@@ -269,9 +239,6 @@ const styles = StyleSheet.create({
   selectedBorder: { borderWidth: 4, borderColor: '#C4A6FB', backgroundColor: '#FFF' },
   iconCircle: { backgroundColor: '#FFF', width: 55, height: 55, borderRadius: 27.5, justifyContent: 'center', alignItems: 'center', marginBottom: 5 },
   cardText: { fontSize: 17, fontWeight: 'bold', color: '#444' },
-  typeRow: { flexDirection: 'row', justifyContent: 'space-between' },
-  typeCard: { flex: 1, marginHorizontal: 5, paddingVertical: 25, borderRadius: 30, alignItems: 'center', elevation: 2 },
-  typeText: { fontSize: 20, fontWeight: '900', marginTop: 10 },
   startBtn: { backgroundColor: '#66BB6A', padding: 20, borderRadius: 30, alignItems: 'center', marginTop: 10, elevation: 5, borderBottomWidth: 5, borderBottomColor: '#4CAF50' },
   startBtnText: { color: '#FFF', fontSize: 24, fontWeight: '900' }
 });
