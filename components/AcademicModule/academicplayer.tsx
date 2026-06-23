@@ -102,7 +102,6 @@ export default function AcademicPlayer({ role }: PlayerProps) {
   }, [loading, currentIndex, voiceUrls]);
 
   const handleNext = async () => {
-    // UPDATED: Now plays warning2_url for Writing type
     if (type === 'Writing' && !hasTraced) {
       setShowWarningModal(true);
       if (voiceUrls?.warning2_url) playSound(voiceUrls.warning2_url);
@@ -189,12 +188,12 @@ export default function AcademicPlayer({ role }: PlayerProps) {
           <View style={styles.readingContainer}>
             <View style={styles.topSection}>
                 <View style={styles.instructionRow}>
-                    <Text style={styles.topInstruction}>Tap the speaker and listen 👇</Text>
-                    <TouchableOpacity style={styles.speakerBtn} onPress={() => {
+                    <TouchableOpacity style={[styles.speakerBtn, { marginRight: 10 }]} onPress={() => {
                         playSound(voiceUrls?.instruction5_url);
                     }}>
                         <Ionicons name="volume-high" size={24} color="#FFF" />
                     </TouchableOpacity>
+                    <Text style={styles.topInstruction}>Tap the speaker and listen 👇</Text>
                 </View>
                 <View style={styles.imageWhiteCard}>
                     <Image source={{ uri: currentLesson?.image }} style={styles.mainImage} resizeMode="contain" />
@@ -222,13 +221,13 @@ export default function AcademicPlayer({ role }: PlayerProps) {
         ) : (
           <View style={styles.writingContainer}>
              <View style={styles.instructionRow}>
-                <Text style={styles.topInstruction}>Trace the picture with your finger ✏️👇</Text>
-                <TouchableOpacity style={styles.speakerBtn} onPress={() => {
+                <TouchableOpacity style={[styles.speakerBtn, { marginRight: 10 }]} onPress={() => {
                     playSound(voiceUrls?.instruction_writing_url);
                     setAudioPlayed(true); 
                 }}>
                     <Ionicons name="volume-high" size={24} color="#FFF" />
                 </TouchableOpacity>
+                <Text style={styles.topInstruction}>Trace the picture with your finger ✏️👇</Text>
              </View>
 
             <View
@@ -329,7 +328,6 @@ export default function AcademicPlayer({ role }: PlayerProps) {
       
       <TouchableOpacity style={styles.warningBtn} onPress={() => setShowWarningModal(false)}>
         <Text style={styles.warningBtnText}>
-          {/* Conditional logic for the button text */}
           {type === 'Writing' ? "I'll keep tracing! ✏️" : "I'll Listen! 🔊"}
         </Text>
       </TouchableOpacity>
@@ -357,7 +355,7 @@ const styles = StyleSheet.create({
   cuteClearText: { color: '#FFF', fontWeight: '900', fontSize: 20, marginLeft: 8 },
   topSection: { width: '100%', alignItems: 'center' },
   instructionRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginBottom: 15 },
-  topInstruction: { fontSize: 18, fontWeight: '800', color: '#5E35B1', marginRight: 10, textAlign: 'center' },
+  topInstruction: { fontSize: 18, fontWeight: '800', color: '#5E35B1', textAlign: 'center' },
   speakerBtn: { backgroundColor: '#C4A6FB', padding: 8, borderRadius: 15 },
   imageWhiteCard: { backgroundColor: '#FFF', width: width * 0.85, height: height * 0.30, borderRadius: 40, alignItems: 'center', justifyContent: 'center', elevation: 8 },
   mainImage: { width: '80%', height: '80%' },
