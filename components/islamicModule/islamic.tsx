@@ -30,7 +30,8 @@ export default function IslamicMain({ role }: { role: 'parent' | 'teacher' }) {
     if (item.audio) {
       try {
         const { sound } = await Audio.Sound.createAsync({ uri: item.audio }, { shouldPlay: true });
-        await delay(1500); 
+        // Reduced delay to 2500ms (3500ms - 1000ms)
+        await delay(2500); 
         await sound.unloadAsync();
       } catch (e) { console.log("Audio Error:", e); }
     }

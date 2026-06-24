@@ -56,7 +56,8 @@ export default function IslamicSubSteps({ role }: { role: 'parent' | 'teacher' }
   if (subItem.audio) {
     try {
       const { sound } = await Audio.Sound.createAsync({ uri: subItem.audio }, { shouldPlay: true });
-      await delay(1200); 
+      // Increased delay to 2500ms to allow full audio playback
+      await delay(2500); 
       await sound.unloadAsync();
     } catch (e) { console.log("Audio Error:", e); }
   } else {
@@ -110,7 +111,8 @@ export default function IslamicSubSteps({ role }: { role: 'parent' | 'teacher' }
             </View>
           )}
           <Image source={{ uri: item.image }} style={styles.img} resizeMode="contain" />
-          <Text style={styles.cardText} numberOfLines={1}>{item.name}</Text>
+          {/* Full text is shown here as numberOfLines={1} was removed */}
+          <Text style={styles.cardText}>{item.name}</Text>
         </View>
       </TouchableOpacity>
     );
