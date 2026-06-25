@@ -4,14 +4,16 @@ import * as ImagePicker from 'expo-image-picker';
 import { useRouter } from 'expo-router';
 import { signOut, updateEmail } from 'firebase/auth';
 import { doc, onSnapshot, updateDoc } from 'firebase/firestore';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
-  ActivityIndicator, Alert, Image, Modal, ScrollView,
+  ActivityIndicator, Animated, Dimensions, Image, Modal, ScrollView,
   StyleSheet, Text, TextInput, TouchableOpacity, View
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { auth, db } from '../../firebaseConfig';
 import { supabase } from '../../supabaseConfig';
+
+const { width } = Dimensions.get('window');
 
 export default function TeacherProfile() {
   const router = useRouter();
@@ -27,57 +29,47 @@ export default function TeacherProfile() {
   const [tempImage, setTempImage] = useState<string | null>(null);
   const [showPreview, setShowPreview] = useState(false);
 
-  // CORRECTED: Real-time listener with Error Handling
+  // --- CUTE MODAL STATES ---
+  const [modalVisible, setModalVisible] = useState(false);
+  const [modalTitle, setModalTitle] = useState('');
+  const [modalMsg, setModalMsg] = useState('');
+  const [modalType, setModalType] = useState<'success' | 'warning' | 'confirm'>('success');
+  const [onConfirmAction, setOnConfirmAction] = useState<(() => void) | null>(null);
+  const scaleAnim = useRef(new Animated.Value(0)).current;
+
+  const triggerCuteAlert = (title: string, msg: string, type: 'success' | 'warning' | 'confirm' = 'success', onConfirm?: () => void) => {
+    setModalTitle(title);
+    setModalMsg(msg);
+    setModalType(type);
+    setOnConfirmAction(() => onConfirm || null);
+    setModalVisible(true);
+    scaleAnim.setValue(0);
+    Animated.spring(scaleAnim, { toValue: 1, friction: 4, useNativeDriver: true }).start();
+  };
+
   useEffect(() => {
     const user = auth.currentUser;
     if (!user) return;
-
     const userRef = doc(db, "users", user.uid);
-
-    const unsubscribe = onSnapshot(
-      userRef, 
-      (docSnap) => {
-        // Only update if the user is still logged in
+    const unsubscribe = onSnapshot(userRef, (docSnap) => {
         if (docSnap.exists() && auth.currentUser) {
           const data = docSnap.data();
           setName(data.name || '');
           setProfileImage(data.profileImage || null);
           setEmail(data.email || user.email || '');
         }
-      },
-      (error) => {
-        // This is the fix for your error. It catches the permission loss during logout.
-        if (error.code === 'permission-denied') {
-          console.log("Teacher profile listener detached safely.");
-        }
+      }, (error) => {
+        if (error.code === 'permission-denied') console.log("Listener detached.");
       }
     );
-
     return () => unsubscribe();
   }, []);
 
   const copyToClipboard = async () => {
-    try {
-      const code = auth.currentUser?.uid;
-      if (code) {
-        await Clipboard.setStringAsync(code);
-        Alert.alert("Copied! ✅", "Classroom code copied to clipboard.");
-      }
-    } catch (err) {
-      Alert.alert("Error", "Could not copy code.");
-    }
-  };
-
-  const pickImage = async () => {
-    let result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ['images'],
-      allowsEditing: false, 
-      quality: 0.7,
-    });
-
-    if (!result.canceled) {
-      setTempImage(result.assets[0].uri);
-      setShowPreview(true);
+    const code = auth.currentUser?.uid;
+    if (code) {
+      await Clipboard.setStringAsync(code);
+      triggerCuteAlert("Copied! ✅", "Classroom code copied to clipboard.", "success");
     }
   };
 
@@ -85,48 +77,40 @@ export default function TeacherProfile() {
     if (!tempImage) return;
     setShowPreview(false);
     setLoading(true);
-    
     try {
       const user = auth.currentUser;
       const fileName = `${user?.uid}/${Date.now()}.jpg`;
       const response = await fetch(tempImage);
       const blob = await response.blob();
       const arrayBuffer = await new Response(blob).arrayBuffer();
-
-      const { error } = await supabase.storage
-        .from('avatars') 
-        .upload(fileName, arrayBuffer, { contentType: 'image/jpeg', upsert: true });
-
+      const { error } = await supabase.storage.from('avatars').upload(fileName, arrayBuffer, { contentType: 'image/jpeg', upsert: true });
       if (error) throw error;
-
       const { data: urlData } = supabase.storage.from('avatars').getPublicUrl(fileName);
-      const publicUrl = urlData.publicUrl;
-
-      await updateDoc(doc(db, "users", user!.uid), { profileImage: publicUrl });
-      Alert.alert("Success", "Profile photo updated!");
+      await updateDoc(doc(db, "users", user!.uid), { profileImage: urlData.publicUrl });
+      triggerCuteAlert("Success! ✨", "Profile photo updated!", "success");
     } catch (error: any) {
-      Alert.alert("Upload Error", error.message);
+      triggerCuteAlert("Oops! ❌", error.message, "warning");
     } finally {
       setLoading(false);
     }
   };
 
   const handleUpdateName = async () => {
-    if (!name.trim()) return Alert.alert("Error", "Name is required");
+    if (!name.trim()) return triggerCuteAlert("Wait! ✋", "Name is required", "warning");
     setLoading(true);
     try {
       await updateDoc(doc(db, "users", auth.currentUser!.uid), { name: name });
       setIsEditingName(false);
-      Alert.alert("Success", "Name updated!");
+      triggerCuteAlert("Updated! ✅", "Your name has been changed.", "success");
     } catch (e) {
-      Alert.alert("Error", "Could not update name");
+      triggerCuteAlert("Error ❌", "Could not update name", "warning");
     } finally {
       setLoading(false);
     }
   };
 
   const handleUpdateEmail = async () => {
-    if (!email.trim() || !email.includes('@')) return Alert.alert("Error", "Valid email is required");
+    if (!email.trim() || !email.includes('@')) return triggerCuteAlert("Oops! 📧", "Valid email is required", "warning");
     setLoading(true);
     try {
       const user = auth.currentUser;
@@ -134,53 +118,81 @@ export default function TeacherProfile() {
         await updateEmail(user, email);
         await updateDoc(doc(db, "users", user.uid), { email: email });
         setIsEditingEmail(false);
-        Alert.alert("Success", "Email updated successfully!");
+        triggerCuteAlert("Success! ✅", "Email updated successfully!", "success");
       }
     } catch (e: any) {
-      Alert.alert("Error", e.message);
+      triggerCuteAlert("Error ❌", e.message, "warning");
     } finally {
       setLoading(false);
     }
   };
 
-  // Dedicated Logout function to prevent errors
   const handleLogout = () => {
-    Alert.alert("Logout", "Are you sure you want to exit?", [
-      { text: "Cancel", style: "cancel" },
-      { 
-        text: "Logout", 
-        style: "destructive",
-        onPress: async () => {
-          try {
-            // Navigate to login FIRST to unmount this screen and stop listeners
-            router.replace('/login'); 
-            // Sign out after a small delay
-            setTimeout(async () => {
-              await signOut(auth); 
-            }, 500);
-          } catch (e) {
-            console.log("Logout error:", e);
-          }
-        }
+    triggerCuteAlert(
+      "Logout? 👋", 
+      "Are you sure you want to exit your classroom?", 
+      "confirm", 
+      async () => {
+        setModalVisible(false);
+        router.replace('/login'); 
+        setTimeout(async () => { await signOut(auth); }, 500);
       }
-    ]);
+    );
   };
 
   return (
     <SafeAreaView style={styles.container}>
       
+      {/* --- CUTE MIND BUDDY POPUP --- */}
+      <Modal visible={modalVisible} transparent animationType="fade">
+        <View style={styles.modalOverlay}>
+          <Animated.View style={[
+            styles.rewardBox, 
+            { transform: [{ scale: scaleAnim }], 
+              borderColor: modalType === 'success' ? '#E8F5E9' : '#FFF3E0' }
+          ]}>
+            <View style={styles.iconCircleLarge}>
+               <Ionicons 
+                 name={modalType === 'success' ? "checkmark-circle" : "alert-circle"} 
+                 size={100} 
+                 color={modalType === 'success' ? "#66BB6A" : "#FF9800"} 
+               />
+            </View>
+            <Text style={[styles.wellDoneText, { color: modalType === 'success' ? "#66BB6A" : "#FF9800" }]}>{modalTitle}</Text>
+            <Text style={styles.rewardSubText}>{modalMsg}</Text>
+            
+            <View style={{flexDirection: 'row', marginTop: 20}}>
+              {modalType === 'confirm' && (
+                <TouchableOpacity style={[styles.modalBtn, {backgroundColor: '#BDBDBD', marginRight: 10}]} onPress={() => setModalVisible(false)}>
+                  <Text style={styles.modalBtnText}>No</Text>
+                </TouchableOpacity>
+              )}
+              <TouchableOpacity 
+                style={[styles.modalBtn, { backgroundColor: modalType === 'success' ? '#66BB6A' : '#4CAF50' }]} 
+                onPress={() => {
+                  if (modalType === 'confirm' && onConfirmAction) {
+                    onConfirmAction();
+                  } else {
+                    setModalVisible(false);
+                  }
+                }}
+              >
+                <Text style={styles.modalBtnText}>{modalType === 'confirm' ? "Logout" : "Okay! 👍"}</Text>
+              </TouchableOpacity>
+            </View>
+          </Animated.View>
+        </View>
+      </Modal>
+
+      {/* --- PREVIEW MODAL --- */}
       <Modal visible={showPreview} animationType="slide" transparent={false}>
         <SafeAreaView style={styles.previewContainer}>
           <View style={styles.previewHeader}>
-            <TouchableOpacity onPress={() => setShowPreview(false)} style={styles.previewBack}>
-              <Ionicons name="close" size={28} color="#1E293B" />
-            </TouchableOpacity>
+            <TouchableOpacity onPress={() => setShowPreview(false)} style={styles.previewBack}><Ionicons name="close" size={28} color="#1E293B" /></TouchableOpacity>
             <Text style={styles.previewTitle}>Preview Photo</Text>
             <View style={{width: 40}} />
           </View>
-          <View style={styles.previewImageFrame}>
-            {tempImage && <Image source={{ uri: tempImage }} style={styles.fullPreview} />}
-          </View>
+          <View style={styles.previewImageFrame}>{tempImage && <Image source={{ uri: tempImage }} style={styles.fullPreview} />}</View>
           <View style={styles.previewFooter}>
             <TouchableOpacity style={styles.mainUploadBtn} onPress={uploadToSupabase}>
               <Text style={styles.mainUploadBtnText}>UPLOAD NOW</Text>
@@ -198,49 +210,40 @@ export default function TeacherProfile() {
       )}
 
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backBtnCircle}>
-          <Ionicons name="chevron-back" size={24} color="#1E293B" />
-        </TouchableOpacity>
+        <TouchableOpacity onPress={() => router.back()} style={styles.backBtnCircle}><Ionicons name="chevron-back" size={24} color="#1E293B" /></TouchableOpacity>
         <Text style={styles.headerTitle}>Instructor Profile</Text>
         <View style={{width: 40}} />
       </View>
 
       <ScrollView contentContainerStyle={{paddingBottom: 40}}>
         <View style={styles.profileBox}>
-          <TouchableOpacity onPress={pickImage} style={styles.avatarWrapper}>
-            {profileImage ? (
-              <Image source={{ uri: profileImage }} style={styles.avatarImg} />
-            ) : (
-              <View style={styles.avatarPlaceholder}>
-                <Ionicons name="person" size={50} color="#CBD5E1" />
-              </View>
+          <TouchableOpacity onPress={() => {
+              ImagePicker.requestMediaLibraryPermissionsAsync().then(({status}) => {
+                  if(status === 'granted') {
+                    ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 0.7 }).then(res => {
+                        if(!res.canceled) { setTempImage(res.assets[0].uri); setShowPreview(true); }
+                    })
+                  }
+              })
+          }} style={styles.avatarWrapper}>
+            {profileImage ? <Image source={{ uri: profileImage }} style={styles.avatarImg} /> : (
+              <View style={styles.avatarPlaceholder}><Ionicons name="person" size={50} color="#CBD5E1" /></View>
             )}
-            <View style={styles.cameraIconBadge}>
-              <Ionicons name="camera" size={18} color="#FFF" />
-            </View>
+            <View style={styles.cameraIconBadge}><Ionicons name="camera" size={18} color="#FFF" /></View>
           </TouchableOpacity>
           <Text style={styles.roleLabel}>OFFICIAL ADMINISTRATOR</Text>
         </View>
 
         <View style={styles.formContainer}>
            <Text style={styles.inputLabel}>MY CLASSROOM CODE (Share with Students)</Text>
-           <TouchableOpacity 
-             style={[styles.inputRow, { backgroundColor: '#EEF2FF', borderColor: '#4F46E5' }]}
-             onPress={copyToClipboard}
-             activeOpacity={0.7}
-           >
+           <TouchableOpacity style={[styles.inputRow, { backgroundColor: '#EEF2FF', borderColor: '#4F46E5' }]} onPress={copyToClipboard} activeOpacity={0.7}>
               <Text style={[styles.nameInput, { color: '#4F46E5' }]}>{auth.currentUser?.uid || 'Loading...'}</Text>
               <Ionicons name="copy-outline" size={20} color="#4F46E5" />
            </TouchableOpacity>
 
            <Text style={styles.inputLabel}>DISPLAY NAME</Text>
            <View style={styles.inputRow}>
-              <TextInput 
-                style={[styles.nameInput, !isEditingName && {color: '#64748B'}]}
-                value={name}
-                onChangeText={setName}
-                editable={isEditingName}
-              />
+              <TextInput style={[styles.nameInput, !isEditingName && {color: '#64748B'}]} value={name} onChangeText={setName} editable={isEditingName} />
               <TouchableOpacity onPress={() => isEditingName ? handleUpdateName() : setIsEditingName(true)}>
                 <Text style={styles.editBtnText}>{isEditingName ? 'SAVE' : 'EDIT'}</Text>
               </TouchableOpacity>
@@ -248,27 +251,15 @@ export default function TeacherProfile() {
 
            <Text style={styles.inputLabel}>EMAIL ADDRESS</Text>
            <View style={styles.inputRow}>
-              <TextInput 
-                style={[styles.nameInput, !isEditingEmail && {color: '#64748B'}]}
-                value={email}
-                onChangeText={setEmail}
-                editable={isEditingEmail}
-                keyboardType="email-address"
-                autoCapitalize="none"
-              />
+              <TextInput style={[styles.nameInput, !isEditingEmail && {color: '#64748B'}]} value={email} onChangeText={setEmail} editable={isEditingEmail} keyboardType="email-address" autoCapitalize="none" />
               <TouchableOpacity onPress={() => isEditingEmail ? handleUpdateEmail() : setIsEditingEmail(true)}>
                 <Text style={styles.editBtnText}>{isEditingEmail ? 'SAVE' : 'EDIT'}</Text>
               </TouchableOpacity>
            </View>
         </View>
 
-        <TouchableOpacity 
-          style={styles.signOutRow} 
-          onPress={handleLogout}
-        >
-          <View style={styles.signOutIcon}>
-            <MaterialIcons name="logout" size={22} color="#EF4444" />
-          </View>
+        <TouchableOpacity style={styles.signOutRow} onPress={handleLogout}>
+          <View style={styles.signOutIcon}><MaterialIcons name="logout" size={22} color="#EF4444" /></View>
           <Text style={styles.signOutText}>Logout</Text>
         </TouchableOpacity>
       </ScrollView>
@@ -305,4 +296,13 @@ const styles = StyleSheet.create({
   previewFooter: { padding: 30, alignItems: 'center' },
   mainUploadBtn: { backgroundColor: '#1E293B', width: '100%', height: 65, borderRadius: 20, flexDirection: 'row', justifyContent: 'center', alignItems: 'center', elevation: 5 },
   mainUploadBtnText: { color: '#FFF', fontSize: 18, fontWeight: '900', letterSpacing: 1 },
+
+  // --- CUTE MODAL STYLES ---
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.85)', justifyContent: 'center', alignItems: 'center' },
+  rewardBox: { backgroundColor: '#FFF', padding: 30, borderRadius: 50, alignItems: 'center', elevation: 20, width: '85%', borderWidth: 10 },
+  wellDoneText: { fontSize: 28, fontWeight: '900', textAlign: 'center', marginTop: 10 },
+  rewardSubText: { fontSize: 18, color: '#555', fontWeight: '700', marginTop: 15, textAlign: 'center', lineHeight: 24 },
+  iconCircleLarge: { width: 140, height: 140, borderRadius: 70, justifyContent: 'center', alignItems: 'center' },
+  modalBtn: { paddingHorizontal: 30, paddingVertical: 15, borderRadius: 25, marginTop: 20, minWidth: 100, alignItems: 'center' },
+  modalBtnText: { color: '#FFF', fontSize: 18, fontWeight: 'bold' }
 });

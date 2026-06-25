@@ -1,11 +1,13 @@
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import {
-  Alert,
+  ActivityIndicator,
+  Animated,
   Dimensions,
   Image,
   KeyboardAvoidingView,
+  Modal,
   Platform,
   ScrollView,
   StatusBar,
@@ -17,7 +19,7 @@ import {
 } from 'react-native';
 
 import { createUserWithEmailAndPassword, updateProfile } from "firebase/auth";
-import { doc, setDoc } from "firebase/firestore";
+import { doc, getDoc, setDoc } from "firebase/firestore";
 import { auth, db } from "../firebaseConfig";
 
 const { width, height } = Dimensions.get('window');
@@ -31,16 +33,29 @@ const SignUpScreen = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [loading, setLoading] = useState(false);
+  
+  // Modal States
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [showWarningModal, setShowWarningModal] = useState(false);
+  const [alertMsg, setAlertMsg] = useState('');
 
-  // Multiple teacher codes — start with one empty field
+  const scaleAnim = useRef(new Animated.Value(0)).current;
+  const warnAnim = useRef(new Animated.Value(0)).current;
+
   const [teacherCodes, setTeacherCodes] = useState<string[]>(['']);
-
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   const validateEmail = (email: string) => /\S+@\S+\.\S+/.test(email);
 
-  // ── Teacher code helpers ───────────────────────────────────────
+  const triggerWarning = (msg: string) => {
+    setAlertMsg(msg);
+    setShowWarningModal(true);
+    warnAnim.setValue(0);
+    Animated.spring(warnAnim, { toValue: 1, friction: 4, useNativeDriver: true }).start();
+  };
+
   const updateTeacherCode = (text: string, index: number) => {
     const updated = [...teacherCodes];
     updated[index] = text;
@@ -53,50 +68,62 @@ const SignUpScreen = () => {
 
   const removeTeacherCodeField = (index: number) => {
     if (teacherCodes.length === 1) {
-      // Keep at least one field, just clear it
       setTeacherCodes(['']);
       return;
     }
     setTeacherCodes(teacherCodes.filter((_, i) => i !== index));
   };
 
-  // ── Signup ─────────────────────────────────────────────────────
   const handleSignup = async () => {
     if (!name || !email || !password || !confirmPassword) {
-      Alert.alert("Error", "Please fill all fields.");
+      triggerWarning("Please fill all the boxes! ✨");
       return;
     }
 
-    // For parent: at least one non-empty teacher code required
     const filledCodes = teacherCodes.map(c => c.trim()).filter(c => c.length > 0);
-    if (selectedRole === 'parent' && filledCodes.length === 0) {
-      Alert.alert("Error", "Please enter at least one Teacher Code.");
-      return;
-    }
+    
+    if (selectedRole === 'parent') {
+      if (filledCodes.length === 0) {
+        triggerWarning("Please enter a Teacher Code to connect! 🏫");
+        return;
+      }
 
-    // Check for duplicate codes
-    const uniqueCodes = [...new Set(filledCodes)];
-    if (uniqueCodes.length !== filledCodes.length) {
-      Alert.alert("Error", "You have entered duplicate teacher codes. Please remove them.");
-      return;
+      setLoading(true);
+      try {
+        for (const code of filledCodes) {
+          const teacherDocRef = doc(db, "users", code);
+          const teacherDocSnap = await getDoc(teacherDocRef);
+
+          if (!teacherDocSnap.exists() || teacherDocSnap.data().role !== 'teacher') {
+            setLoading(false);
+            triggerWarning(`Invalid teacher code. please try again`);
+            return; 
+          }
+        }
+      } catch (err: any) {
+        setLoading(false);
+        triggerWarning("Connection error. Try again! 🌐");
+        return;
+      }
     }
 
     if (!validateEmail(email)) {
-      Alert.alert("Error", "Enter a valid email.");
+      triggerWarning("Invalid email. please try again.");
       return;
     }
 
     if (password.length < 8) {
-      Alert.alert("Error", "Password must be at least 8 characters.");
-      return;
+        triggerWarning("Password must be at least 8 characters! 🔑");
+        return;
     }
 
     if (password !== confirmPassword) {
-      Alert.alert("Error", "Passwords do not match!");
-      return;
+        triggerWarning("Passwords do not match! 👯. please try again");
+        return;
     }
 
     try {
+      setLoading(true);
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
       const user = userCredential.user;
 
@@ -106,24 +133,63 @@ const SignUpScreen = () => {
         name: name,
         email: email,
         role: selectedRole || 'parent',
-        // Save array of teacher codes (consistent with updated UserProfile)
         teacherIds: selectedRole === 'parent' ? filledCodes : [],
-        // Keep legacy single field in sync with first teacher code
         teacherId: selectedRole === 'teacher' ? user.uid : (filledCodes[0] || ''),
         status: "active",
         createdAt: new Date().toISOString()
       });
 
-      Alert.alert("Success", "Account created successfully!");
-      router.replace("/login");
+      setLoading(false);
+      
+      // SUCCESS POPUP
+      setShowSuccessModal(true);
+      scaleAnim.setValue(0);
+      Animated.spring(scaleAnim, { toValue: 1, friction: 4, useNativeDriver: true }).start();
+
+      setTimeout(() => {
+        setShowSuccessModal(false);
+        router.replace("/login");
+      }, 3000);
+
     } catch (error: any) {
-      Alert.alert("Error", error.message);
+      setLoading(false);
+      triggerWarning(error.message);
     }
   };
 
   return (
     <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.mainContainer}>
       <StatusBar barStyle="dark-content" />
+      
+      {/* CUTE SUCCESS MODAL */}
+      <Modal visible={showSuccessModal} transparent animationType="fade">
+        <View style={styles.modalOverlay}>
+          <Animated.View style={[styles.rewardBox, { transform: [{ scale: scaleAnim }], borderColor: '#E8F5E9' }]}>
+            <View style={styles.iconCircleSuccess}>
+               <Ionicons name="checkmark-circle" size={100} color="#66BB6A" />
+            </View>
+            <Text style={styles.successTitle}>WELCOME! 🎉</Text>
+            <Text style={styles.rewardSubText}>Account created!{"\n"}Let's start learning!</Text>
+          </Animated.View>
+        </View>
+      </Modal>
+
+      {/* CUTE WARNING MODAL */}
+      <Modal visible={showWarningModal} transparent animationType="fade">
+        <View style={styles.modalOverlay}>
+          <Animated.View style={[styles.rewardBox, { transform: [{ scale: warnAnim }], borderColor: '#FFF3E0' }]}>
+            <View style={styles.iconCircleWarning}>
+               <Ionicons name="alert-circle" size={100} color="#FF9800" />
+            </View>
+            <Text style={styles.warningTitle}>Almost There! 👋</Text>
+            <Text style={styles.rewardSubText}>{alertMsg}</Text>
+            <TouchableOpacity style={styles.warningBtn} onPress={() => setShowWarningModal(false)}>
+              <Text style={styles.warningBtnText}>Try Again! 👍</Text>
+            </TouchableOpacity>
+          </Animated.View>
+        </View>
+      </Modal>
+
       <ScrollView contentContainerStyle={{ flexGrow: 1 }} bounces={false} showsVerticalScrollIndicator={false}>
         <View style={styles.headerSection}>
           <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
@@ -136,13 +202,11 @@ const SignUpScreen = () => {
         <View style={styles.formSection}>
           <Text style={styles.signUpTitle}>Sign up</Text>
 
-          {/* Name */}
           <View style={styles.inputContainer}>
             <Ionicons name="person-outline" size={22} color="#888" style={styles.icon} />
             <TextInput style={styles.input} placeholder="Full Name" placeholderTextColor="#A0A0A0" value={name} onChangeText={setName} />
           </View>
 
-          {/* Teacher Codes (parent only) */}
           {selectedRole === 'parent' && (
             <View style={styles.teacherSection}>
               <Text style={styles.teacherLabel}>
@@ -162,17 +226,12 @@ const SignUpScreen = () => {
                       autoCapitalize="none"
                     />
                   </View>
-                  {/* Remove button — always show so user can clear */}
-                  <TouchableOpacity
-                    style={styles.removeBtn}
-                    onPress={() => removeTeacherCodeField(index)}
-                  >
+                  <TouchableOpacity style={styles.removeBtn} onPress={() => removeTeacherCodeField(index)}>
                     <Ionicons name="close-circle" size={26} color="#E87D88" />
                   </TouchableOpacity>
                 </View>
               ))}
 
-              {/* Add another teacher code */}
               <TouchableOpacity style={styles.addCodeBtn} onPress={addTeacherCodeField}>
                 <Ionicons name="add-circle-outline" size={20} color="#009688" />
                 <Text style={styles.addCodeText}>Add Another Teacher Code</Text>
@@ -180,13 +239,11 @@ const SignUpScreen = () => {
             </View>
           )}
 
-          {/* Email */}
           <View style={styles.inputContainer}>
             <MaterialCommunityIcons name="email-outline" size={22} color="#888" style={styles.icon} />
             <TextInput style={styles.input} placeholder="Email" placeholderTextColor="#A0A0A0" value={email} onChangeText={setEmail} keyboardType="email-address" autoCapitalize="none" />
           </View>
 
-          {/* Password */}
           <View style={styles.inputContainer}>
             <MaterialCommunityIcons name="lock-outline" size={22} color="#888" style={styles.icon} />
             <TextInput style={styles.input} placeholder="Password" placeholderTextColor="#A0A0A0" value={password} onChangeText={setPassword} secureTextEntry={!showPassword} />
@@ -195,7 +252,6 @@ const SignUpScreen = () => {
             </TouchableOpacity>
           </View>
 
-          {/* Confirm Password */}
           <View style={styles.inputContainer}>
             <MaterialCommunityIcons name="lock-outline" size={22} color="#888" style={styles.icon} />
             <TextInput style={styles.input} placeholder="Confirm password" placeholderTextColor="#A0A0A0" value={confirmPassword} onChangeText={setConfirmPassword} secureTextEntry={!showConfirmPassword} />
@@ -204,8 +260,12 @@ const SignUpScreen = () => {
             </TouchableOpacity>
           </View>
 
-          <TouchableOpacity style={styles.signUpButton} onPress={handleSignup}>
-            <Text style={styles.signUpButtonText}>Sign up</Text>
+          <TouchableOpacity 
+            style={[styles.signUpButton, loading && { opacity: 0.7 }]} 
+            onPress={handleSignup}
+            disabled={loading}
+          >
+            {loading ? <ActivityIndicator color="#B48454" /> : <Text style={styles.signUpButtonText}>Sign up</Text>}
           </TouchableOpacity>
         </View>
       </ScrollView>
@@ -226,14 +286,23 @@ const styles = StyleSheet.create({
   input: { flex: 1, fontSize: 16, color: '#333' },
   signUpButton: { backgroundColor: '#FFC26D', height: 65, borderRadius: 20, justifyContent: 'center', alignItems: 'center', marginTop: 25, marginBottom: 30 },
   signUpButtonText: { color: '#B48454', fontSize: 24, fontWeight: 'bold' },
-
-  // ── Teacher codes ──
   teacherSection: { marginBottom: 15 },
   teacherLabel: { fontSize: 14, color: '#009688', fontWeight: '700', marginBottom: 8, marginLeft: 4 },
   teacherCodeRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 10 },
   removeBtn: { marginLeft: 8 },
   addCodeBtn: { flexDirection: 'row', alignItems: 'center', paddingVertical: 8, paddingHorizontal: 4 },
   addCodeText: { fontSize: 15, color: '#009688', fontWeight: '600', marginLeft: 6 },
+
+  // MODAL STYLES (MATCHING ROUTINE MODULE)
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.8)', justifyContent: 'center', alignItems: 'center' },
+  rewardBox: { backgroundColor: '#FFF', padding: 30, borderRadius: 50, alignItems: 'center', elevation: 20, width: '85%', borderWidth: 10 },
+  iconCircleSuccess: { marginBottom: 10 },
+  iconCircleWarning: { marginBottom: 10 },
+  successTitle: { fontSize: 28, fontWeight: '900', color: '#66BB6A', textAlign: 'center' },
+  warningTitle: { fontSize: 28, fontWeight: '900', color: '#FF9800', textAlign: 'center' },
+  rewardSubText: { fontSize: 18, color: '#555', fontWeight: '700', marginTop: 10, textAlign: 'center', lineHeight: 26 },
+  warningBtn: { backgroundColor: '#4CAF50', paddingHorizontal: 40, paddingVertical: 15, borderRadius: 25, marginTop: 20 },
+  warningBtnText: { color: '#FFF', fontSize: 18, fontWeight: 'bold' },
 });
 
 export default SignUpScreen;
