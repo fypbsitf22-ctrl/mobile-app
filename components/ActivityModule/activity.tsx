@@ -358,7 +358,21 @@ export default function ActivityModule({ role }: { role: 'parent' | 'teacher' })
 
   const renderActivity = ({ item }: any) => (
     <View style={styles.activityCard}>
-      <View style={styles.cardHeader}>
+     <View style={styles.cardHeader}>
+  {role === 'parent' &&
+    submissions.some(sub => sub.activityId === item.id) && (
+      <Ionicons
+        name="checkmark-circle"
+        size={28}
+        color="#4CAF50"
+        style={{
+          position: 'absolute',
+          top: -10,
+          right: -10,
+          zIndex: 100,
+        }}
+      />
+    )}
         <View style={styles.iconCircle}><Ionicons name="document-text" size={28} color="#FF9F43" /></View>
         <View style={{ flex: 1, marginLeft: 15 }}>
           <Text style={styles.cardTitle}>{item.title}</Text>
@@ -489,7 +503,7 @@ export default function ActivityModule({ role }: { role: 'parent' | 'teacher' })
             </TouchableOpacity>
             <TouchableOpacity style={[styles.submitModalBtn, { backgroundColor: '#66BB6A' }]} onPress={() => { setShowSubmitModal(false); pickMedia(true, 'submission', selectedActivity.id, selectedActivity.title, selectedActivity.teacherId); }}>
               <Ionicons name="camera" size={24} color="#FFF" />
-              <Text style={styles.submitModalBtnText}>Take Photo/Video 📸</Text>
+              <Text style={styles.submitModalBtnText}>Take Photo 📸</Text>
             </TouchableOpacity>
             <TouchableOpacity onPress={() => setShowSubmitModal(false)} style={{ marginTop: 15 }}>
               <Text style={{ fontSize: 18, color: '#FF5252', fontWeight: 'bold' }}>Cancel</Text>
