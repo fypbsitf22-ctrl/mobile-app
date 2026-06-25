@@ -65,9 +65,7 @@ export default function MainHeaderShared({ role }: { role: 'parent' | 'teacher' 
           <TouchableOpacity style={styles.iconBtn} onPress={() => router.push(`/${role}/notification` as any)}>
             <Ionicons name="notifications-outline" size={26} color="#B48454" />
           </TouchableOpacity>
-          <TouchableOpacity style={styles.iconBtn} onPress={() => router.push(`/${role}/settings` as any)}>
-            <Ionicons name="settings-outline" size={26} color="#B48454" />
-          </TouchableOpacity>
+        
         </View>
 
       </View>
