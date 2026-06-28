@@ -244,7 +244,11 @@ export default function IslamicVideo({ role }: { role: 'parent' | 'teacher' }) {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#FFF9E9' },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+<<<<<<< HEAD
   headerArea: { alignItems: 'center', marginTop: 30, paddingHorizontal: 20 },
+=======
+  headerArea: { alignItems: 'center', marginTop: 15, paddingHorizontal: 20 },
+>>>>>>> 4f78456134c108c1f30e37d81a2b3f46537684c6
   topHeaderRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', width: '100%', marginBottom: 5 },
   exitCircle: { width: 46, height: 46, borderRadius: 23, backgroundColor: '#5A9BD5', justifyContent: 'center', alignItems: 'center', elevation: 4 },
   titlePill: { backgroundColor: '#E1F5FE', paddingHorizontal: 30, paddingVertical: 12, borderRadius: 40, elevation: 2, flexShrink: 1, marginHorizontal: 10 },

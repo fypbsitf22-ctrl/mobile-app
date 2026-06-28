@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 import { useRouter } from 'expo-router';
 import { Bell, Settings, User, X } from 'lucide-react-native';
 import React, { useState } from 'react';
@@ -134,3 +135,15 @@ const styles = StyleSheet.create({
   input: { borderBottomWidth: 1, borderColor: '#ccc', marginBottom: 20, padding: 10 },
   submitBtn: { backgroundColor: '#4CAF50', padding: 15, borderRadius: 15, alignItems: 'center' }
 });
+=======
+import React from "react";
+import { Text, View } from "react-native";
+
+export default function ParentPanel() {
+  return (
+    <View>
+      <Text>Parent Panel</Text>
+    </View>
+  );
+}
+>>>>>>> 4f78456134c108c1f30e37d81a2b3f46537684c6

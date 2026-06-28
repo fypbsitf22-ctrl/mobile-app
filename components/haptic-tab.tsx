@@ -15,4 +15,8 @@ export function HapticTab(props: BottomTabBarButtonProps) {
       }}
     />
   );
+<<<<<<< HEAD
 }
+=======
+}
+>>>>>>> 4f78456134c108c1f30e37d81a2b3f46537684c6

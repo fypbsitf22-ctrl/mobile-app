@@ -107,7 +107,11 @@ export default function GKMain({ role }: { role: 'parent' | 'teacher' }) {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#FFF9E9' },
+<<<<<<< HEAD
   headerRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, marginTop: 35, marginBottom: 10 },
+=======
+  headerRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, marginTop: 15, marginBottom: 10 },
+>>>>>>> 4f78456134c108c1f30e37d81a2b3f46537684c6
   backCircle: { backgroundColor: '#7E57C2', width: 45, height: 45, borderRadius: 22.5, justifyContent: 'center', alignItems: 'center', elevation: 4 },
   titleBadge: { backgroundColor: '#FCE4EC', flex: 1, marginLeft: 15, paddingVertical: 12, borderRadius: 30, alignItems: 'center', elevation: 2 },
   headerTitle: { fontSize: 22, fontWeight: 'bold', color: '#7E57C2' },

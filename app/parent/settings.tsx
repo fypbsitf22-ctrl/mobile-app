@@ -1,7 +1,3 @@
-<<<<<<< HEAD
-import GamesMain from '../../../components/GamesModule/gamesmodulelist';
-export default function ParentGames() { return <GamesMain role="parent" />; }
-=======
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import React from 'react';
@@ -37,4 +33,3 @@ const styles = StyleSheet.create({
   content: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 40 },
   message: { fontSize: 20, color: '#B48454', textAlign: 'center', marginTop: 20, fontWeight: '600' }
 });
->>>>>>> 4f78456134c108c1f30e37d81a2b3f46537684c6

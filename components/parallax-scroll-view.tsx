@@ -1,10 +1,17 @@
 import type { PropsWithChildren, ReactElement } from 'react';
 import { StyleSheet } from 'react-native';
 import Animated, {
+<<<<<<< HEAD
     interpolate,
     useAnimatedRef,
     useAnimatedStyle,
     useScrollOffset,
+=======
+  interpolate,
+  useAnimatedRef,
+  useAnimatedStyle,
+  useScrollOffset,
+>>>>>>> 4f78456134c108c1f30e37d81a2b3f46537684c6
 } from 'react-native-reanimated';
 
 import { ThemedView } from '@/components/themed-view';
@@ -76,4 +83,8 @@ const styles = StyleSheet.create({
     gap: 16,
     overflow: 'hidden',
   },
+<<<<<<< HEAD
 });
+=======
+});
+>>>>>>> 4f78456134c108c1f30e37d81a2b3f46537684c6

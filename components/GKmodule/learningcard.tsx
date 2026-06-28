@@ -271,7 +271,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row', 
     alignItems: 'center', 
     paddingHorizontal: 20, 
+<<<<<<< HEAD
     paddingVertical: 20,
+=======
+    paddingVertical: 10,
+>>>>>>> 4f78456134c108c1f30e37d81a2b3f46537684c6
     zIndex: 10 
   },
   backCircle: { 
@@ -299,7 +303,11 @@ const styles = StyleSheet.create({
     flex: 1, 
     alignItems: 'center', 
     justifyContent: 'space-between', 
+<<<<<<< HEAD
     paddingBottom: 30,
+=======
+    paddingBottom: 40,
+>>>>>>> 4f78456134c108c1f30e37d81a2b3f46537684c6
     paddingHorizontal: 20 
   },
   topSection: {

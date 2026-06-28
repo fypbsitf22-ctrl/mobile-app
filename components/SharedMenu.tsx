@@ -38,8 +38,12 @@ export default function SharedMenu({ role }: Props) {
       color: '#E9F9E0', 
       btnColor: '#A5E9B9', 
       image: require('../assets/images/animals.png'), 
+<<<<<<< HEAD
       // Update Teacher route here:
       route: role === 'teacher' ? '/teacher/progress-board' : '/parent/parentpanel', 
+=======
+      route: role === 'teacher' ? '/teacher/activity/activity' : '/parent/parentpanel', 
+>>>>>>> 4f78456134c108c1f30e37d81a2b3f46537684c6
       isParent: true, 
       audio: require('../assets/audio/parent.mp3') 
     },

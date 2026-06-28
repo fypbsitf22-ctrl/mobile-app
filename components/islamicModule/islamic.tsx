@@ -121,7 +121,11 @@ export default function IslamicMain({ role }: { role: 'parent' | 'teacher' }) {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#FFF9E9' },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+<<<<<<< HEAD
   titleRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, marginTop: 25 },
+=======
+  titleRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, marginTop: 10 },
+>>>>>>> 4f78456134c108c1f30e37d81a2b3f46537684c6
   backBtn: { backgroundColor: '#5A9BD5', width: 45, height: 45, borderRadius: 22.5, justifyContent: 'center', alignItems: 'center' },
   headerCard: { flex: 1, backgroundColor: '#D4E9FF', padding: 15, borderRadius: 25, alignItems: 'center', marginLeft: 15 },
   headerText: { fontSize: 24, fontWeight: 'bold', color: '#5A9BD5' }, 

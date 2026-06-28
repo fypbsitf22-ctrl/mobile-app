@@ -177,10 +177,17 @@ export default function ForgetPassword() {
 const styles = StyleSheet.create({
   mainContainer: { flex: 1, backgroundColor: '#FFF9E9' },
   headerSection: { height: height * 0.35, justifyContent: 'center', paddingHorizontal: 30, zIndex: 1 },
+<<<<<<< HEAD
   textHeaderWrap: { marginTop: 70 },
   welcomeText: { fontSize: 32, fontWeight: '900', color: '#E87D88' },
   subText: { fontSize: 18, color: '#EB8F90', marginTop: 5, fontWeight: '500' },
   characterImage: { position: 'absolute', right: -20, bottom: -40, width: width * 0.5, height: height * 0.35, zIndex: 10 },
+=======
+  textHeaderWrap: { marginTop: 40 },
+  welcomeText: { fontSize: 32, fontWeight: '900', color: '#E87D88' },
+  subText: { fontSize: 18, color: '#EB8F90', marginTop: 5, fontWeight: '500' },
+  characterImage: { position: 'absolute', right: 5, bottom: -30, width: width * 0.5, height: height * 0.35, zIndex: 10 },
+>>>>>>> 4f78456134c108c1f30e37d81a2b3f46537684c6
   formSection: { flex: 1, backgroundColor: '#FFFFFF', borderTopLeftRadius: 50, borderTopRightRadius: 50, paddingHorizontal: 30, paddingTop: 30, elevation: 5 },
   backButton: { flexDirection: 'row', alignItems: 'center', marginBottom: 20 },
   backText: { color: '#B48454', fontWeight: 'bold', fontSize: 16 },
