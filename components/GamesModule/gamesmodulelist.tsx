@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Audio } from 'expo-av';
 import { useRouter } from 'expo-router';
-import React, { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   Dimensions,
   SafeAreaView,
@@ -18,11 +18,11 @@ const { width } = Dimensions.get('window');
 
 // Data for your 5 Games
 const GAMES = [
-  { id: 'fruitsort', name: 'Fruit Sort', color: '#FFADAD', icon: '🍎', audio: require('../../assets/audio/games.mp3') },
-  { id: 'colouringtime', name: 'Coloring Time', color: '#A2D2FF', icon: '🎨', audio: require('../../assets/audio/activity.mp3') },
-  { id: 'matchingpair', name: 'Match Pairs', color: '#CAFFBF', icon: '💎', audio: require('../../assets/audio/games.mp3') },
-  { id: 'catchstars', name: 'Catch Stars', color: '#FFD6A5', icon: '⭐', audio: require('../../assets/audio/games.mp3') },
-  { id: 'dressseason', name: 'Dress Season', color: '#E8E0FF', icon: '👕', audio: require('../../assets/audio/routine.mp3') },
+  { id: 'fruitsort', name: 'Fruit Sort', color: '#FFADAD', icon: '🍎', audio: require('../../assets/audio/fruitsort.mp3') },
+  { id: 'colouringtime', name: 'Coloring Time', color: '#A2D2FF', icon: '🎨', audio: require('../../assets/audio/colouringtime.mp3') },
+  { id: 'matchingpair', name: 'Match Pairs', color: '#CAFFBF', icon: '💎', audio: require('../../assets/audio/matchingpair.mp3') },
+  { id: 'catchstars', name: 'Catch Stars', color: '#FFD6A5', icon: '⭐', audio: require('../../assets/audio/catchthestar.mp3') },
+  { id: 'dressseason', name: 'Dress Season', color: '#E8E0FF', icon: '👕', audio: require('../../assets/audio/dresstheseason.mp3') },
 ];
 
 export default function GamesMain({ role }: { role: 'parent' | 'teacher' }) {
@@ -93,7 +93,7 @@ export default function GamesMain({ role }: { role: 'parent' | 'teacher' }) {
         {/* Instruction Section */}
         <View style={styles.instructionCard}>
           <Text style={styles.instructionText}>Pick a game to play! 🎮</Text>
-          <TouchableOpacity onPress={() => playAudio(require('../../assets/audio/games.mp3'))} style={styles.speakerBtn}>
+          <TouchableOpacity onPress={() => playAudio(require('../../assets/audio/pickagame.mp3'))} style={styles.speakerBtn}>
             <Ionicons name="volume-high" size={24} color="#FFF" />
           </TouchableOpacity>
         </View>

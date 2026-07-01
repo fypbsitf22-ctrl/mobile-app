@@ -2,21 +2,12 @@ import { FontAwesome5, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import React from 'react';
 import {
-<<<<<<< HEAD
   Dimensions,
   StatusBar,
   StyleSheet,
   Text,
   TouchableOpacity,
   View
-=======
-    Dimensions,
-    StatusBar,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View
->>>>>>> 4f78456134c108c1f30e37d81a2b3f46537684c6
 } from 'react-native';
 
 const { width, height } = Dimensions.get('window');

@@ -1,20 +1,11 @@
 {
   "expo": {
-<<<<<<< HEAD
     "name": "Mindbuddy",
     "slug": "Mindbuddy",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "mindbuddy",
-=======
-    "name": "smart-landing-app",
-    "slug": "smart-landing-app",
-    "version": "1.0.0",
-    "orientation": "portrait",
-    "icon": "./assets/images/icon.png",
-    "scheme": "smartlandingapp",
->>>>>>> 4f78456134c108c1f30e37d81a2b3f46537684c6
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
@@ -47,17 +38,12 @@
             "backgroundColor": "#000000"
           }
         }
-<<<<<<< HEAD
-      ]
-=======
       ],
-      "expo-font",
-      "expo-web-browser"
->>>>>>> 4f78456134c108c1f30e37d81a2b3f46537684c6
+      "expo-font"
     ],
     "experiments": {
       "typedRoutes": true,
-      "reactCompiler": true
+      "reactCompiler": false
     }
   }
 }

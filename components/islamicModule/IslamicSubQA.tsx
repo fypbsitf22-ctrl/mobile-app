@@ -152,11 +152,7 @@ const styles = StyleSheet.create({
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   
   // Header Styles (Blue Theme)
-<<<<<<< HEAD
   titleRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, marginTop: 25 },
-=======
-  titleRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, marginTop: 10 },
->>>>>>> 4f78456134c108c1f30e37d81a2b3f46537684c6
   backBtn: { 
     backgroundColor: '#5A9BD5', 
     width: 45, 

@@ -11,17 +11,17 @@ export default function MainHeaderShared({ role }: { role: 'parent' | 'teacher' 
   const [userData, setUserData] = useState<any>(null);
 
   useEffect(() => {
-  const user = auth.currentUser;
-  if (!user) return;
+    const user = auth.currentUser;
+    if (!user) return;
 
-    // Now fetching for BOTH parent and teacher
+    // Fetching for BOTH parent and teacher
     const unsubscribe = onSnapshot(doc(db, "users", user.uid), (docSnap) => {
-    if (docSnap.exists()) {
-      setUserData(docSnap.data());
-    }
-  });
-  return () => unsubscribe();
-}, []);
+      if (docSnap.exists()) {
+        setUserData(docSnap.data());
+      }
+    });
+    return () => unsubscribe();
+  }, []);
 
   const isTeacher = role === 'teacher';
 
@@ -53,19 +53,21 @@ export default function MainHeaderShared({ role }: { role: 'parent' | 'teacher' 
           </TouchableOpacity>
           <View style={styles.textColumn}>
             <Text style={styles.helloText}>Hello {isTeacher ? 'Teacher' : 'Little'} 👋</Text>
-            {/* Fetches dynamic name from Firestore */}
-          <Text style={styles.nameText}>
-  {isTeacher ? (userData?.name || 'Instructor') : (userData?.name || 'Learner')}
-</Text>
+            <Text style={styles.nameText}>
+              {isTeacher ? (userData?.name || 'Instructor') : (userData?.name || 'Learner')}
+            </Text>
           </View>
         </View>
 
         {/* RIGHT SIDE: Notifications & Settings */}
         <View style={styles.rightSection}>
-          <TouchableOpacity style={styles.iconBtn} onPress={() => router.push(`/${role}/notification` as any)}>
+          {/* FIXED LINE BELOW: added 's' to notifications */}
+          <TouchableOpacity 
+            style={styles.iconBtn} 
+            onPress={() => router.push(`/${role}/notifications` as any)}
+          >
             <Ionicons name="notifications-outline" size={26} color="#B48454" />
           </TouchableOpacity>
-        
         </View>
 
       </View>
@@ -74,13 +76,12 @@ export default function MainHeaderShared({ role }: { role: 'parent' | 'teacher' 
 }
 
 const styles = StyleSheet.create({
-  // ... existing styles ...
   headerContainer: {
     backgroundColor: '#FFF',
     borderBottomLeftRadius: 40,
     borderBottomRightRadius: 40,
     paddingHorizontal: 20,
-    paddingTop: 50, // Adjusted for status bar
+    paddingTop: 50, 
     paddingBottom: 20,
     elevation: 10,
     shadowColor: '#000',
@@ -94,7 +95,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center', alignItems: 'center', borderWidth: 2, borderColor: '#FFC26D', overflow: 'hidden',
   },
   buddyImg: { width: 45, height: 45 },
-  profileImg: { width: '100%', height: '100%', borderRadius: 30 }, // Full cover for teacher DP
+  profileImg: { width: '100%', height: '100%', borderRadius: 30 }, 
   textColumn: { marginLeft: 12 },
   helloText: { fontSize: 14, color: '#888', fontWeight: '600' },
   nameText: { fontSize: 18, fontWeight: '900', color: '#444' },

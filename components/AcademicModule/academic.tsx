@@ -224,26 +224,13 @@ export default function AcademicMain({ role }: { role: 'parent' | 'teacher' }) {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#FFF9E9' },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-<<<<<<< HEAD
-  titleRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, marginTop: 20 },
-=======
   titleRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, marginTop: 10 },
->>>>>>> 4f78456134c108c1f30e37d81a2b3f46537684c6
   backBtn: { backgroundColor: '#C4A6FB', width: 45, height: 45, borderRadius: 22.5, justifyContent: 'center', alignItems: 'center', elevation: 4 },
   headerCard: { flex: 1, backgroundColor: '#F3EFFF', padding: 15, borderRadius: 25, alignItems: 'center', marginLeft: 15 },
   headerText: { fontSize: 22, fontWeight: 'bold', color: '#6B46C1' },
   mainScrollView: { marginTop: 20 },
   scrollContent: { paddingHorizontal: 20, paddingBottom: 100 },
   section: { marginBottom: 25 },
-<<<<<<< HEAD
-  instructionCard: { flexDirection: 'row', backgroundColor: '#FFF', padding: 15, borderRadius: 20, alignItems: 'center', justifyContent: 'space-between', marginBottom: 40, elevation: 3 },
-  instructionText: { fontSize: 18, fontWeight: '900', color: '#444', flex: 1 },
-  speakerBtn: { backgroundColor: '#C4A6FB', padding: 8, borderRadius: 15 },
-  grid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' },
-  card: { width: width * 0.42, height: 130, borderRadius: 30, alignItems: 'center', justifyContent: 'center', marginBottom: 25, elevation: 2 },
-  selectedBorder: { borderWidth: 4, borderColor: '#C4A6FB', backgroundColor: '#FFF' },
-  iconCircle: { backgroundColor: '#FFF', width: 55, height: 55, borderRadius: 27.5, justifyContent: 'center', alignItems: 'center', marginBottom: 10 },
-=======
   instructionCard: { flexDirection: 'row', backgroundColor: '#FFF', padding: 15, borderRadius: 20, alignItems: 'center', justifyContent: 'space-between', marginBottom: 15, elevation: 3 },
   instructionText: { fontSize: 18, fontWeight: '900', color: '#444', flex: 1 },
   speakerBtn: { backgroundColor: '#C4A6FB', padding: 8, borderRadius: 15 },
@@ -251,7 +238,6 @@ const styles = StyleSheet.create({
   card: { width: width * 0.42, height: 130, borderRadius: 30, alignItems: 'center', justifyContent: 'center', marginBottom: 15, elevation: 2 },
   selectedBorder: { borderWidth: 4, borderColor: '#C4A6FB', backgroundColor: '#FFF' },
   iconCircle: { backgroundColor: '#FFF', width: 55, height: 55, borderRadius: 27.5, justifyContent: 'center', alignItems: 'center', marginBottom: 5 },
->>>>>>> 4f78456134c108c1f30e37d81a2b3f46537684c6
   cardText: { fontSize: 17, fontWeight: 'bold', color: '#444' },
   startBtn: { backgroundColor: '#66BB6A', padding: 20, borderRadius: 30, alignItems: 'center', marginTop: 10, elevation: 5, borderBottomWidth: 5, borderBottomColor: '#4CAF50' },
   startBtnText: { color: '#FFF', fontSize: 24, fontWeight: '900' }

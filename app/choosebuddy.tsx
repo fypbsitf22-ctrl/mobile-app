@@ -167,11 +167,7 @@ export default function ChooseBuddy() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#FFF9E9' },
   loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-<<<<<<< HEAD
   header: { padding: 50, alignItems: 'center' },
-=======
-  header: { padding: 30, alignItems: 'center' },
->>>>>>> 4f78456134c108c1f30e37d81a2b3f46537684c6
   title: { fontSize: 36, fontWeight: '900', color: '#E87D88', textAlign: 'center' },
   subtitle: { fontSize: 18, color: '#B48454', textAlign: 'center', marginTop: 10 },
   listContent: { paddingHorizontal: 20, paddingBottom: 120 },

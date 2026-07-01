@@ -407,50 +407,29 @@ export default function IslamicQA({ role }: { role: 'parent' | 'teacher' }) {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#FFF9E9' },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-<<<<<<< HEAD
   headerRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, marginTop: 25 },
   backCircle: { backgroundColor: '#5A9BD5', width: 46, height: 46, borderRadius: 23, justifyContent: 'center', alignItems: 'center', elevation: 4 },
   titleBadge: { backgroundColor: '#E1F5FE', flex: 1, marginLeft: 15, paddingVertical: 10, paddingHorizontal: 20, borderRadius: 30, alignItems: 'center', elevation: 2 },
   headerTitle: { fontSize: 20, fontWeight: 'bold', color: '#5A9BD5' },
   content: { flex: 1, alignItems: 'center', paddingHorizontal: 20, paddingBottom: 10 },
-=======
-  headerRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, marginTop: 10 },
-  backCircle: { backgroundColor: '#5A9BD5', width: 46, height: 46, borderRadius: 23, justifyContent: 'center', alignItems: 'center', elevation: 4 },
-  titleBadge: { backgroundColor: '#E1F5FE', flex: 1, marginLeft: 15, paddingVertical: 10, paddingHorizontal: 20, borderRadius: 30, alignItems: 'center', elevation: 2 },
-  headerTitle: { fontSize: 20, fontWeight: 'bold', color: '#5A9BD5' },
-  content: { flex: 1, alignItems: 'center', paddingHorizontal: 20, paddingBottom: 30 },
->>>>>>> 4f78456134c108c1f30e37d81a2b3f46537684c6
   instructionRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginVertical: 15, width: '100%' },
   topInstruction: { fontSize: 18, fontWeight: '800', color: '#000', marginRight: 10, textAlign: 'center' },
   speakerBtn: { backgroundColor: '#5A9BD5', width: 44, height: 44, borderRadius: 22, justifyContent: 'center', alignItems: 'center', elevation: 3 },
   learningArea: { flex: 1, width: '100%' },
   questionCard: { backgroundColor: '#FFF', borderRadius: 25, padding: 20, elevation: 4, alignItems: 'center', borderWidth: 2, borderColor: '#E1F5FE', marginBottom: 15 },
-<<<<<<< HEAD
   labelContainer: { backgroundColor: '#F0F8FF', paddingHorizontal: 15, paddingVertical: 5, borderRadius: 10, marginBottom: 15 },
-=======
-  labelContainer: { backgroundColor: '#F0F8FF', paddingHorizontal: 15, paddingVertical: 5, borderRadius: 10, marginBottom: 10 },
->>>>>>> 4f78456134c108c1f30e37d81a2b3f46537684c6
   qLabel: { color: '#5A9BD5', fontWeight: '900', fontSize: 12, letterSpacing: 1 },
   qText: { fontSize: 22, fontWeight: 'bold', color: '#333', textAlign: 'center', marginBottom: 15 },
   audioBtnLarge: { flexDirection: 'row', backgroundColor: '#5A9BD5', paddingVertical: 12, paddingHorizontal: 30, borderRadius: 25, alignItems: 'center', elevation: 3 },
   audioBtnText: { color: '#FFF', fontWeight: 'bold', marginLeft: 10, fontSize: 18 },
   answerCard: { backgroundColor: '#F1F8E9', borderRadius: 25, padding: 20, elevation: 4, alignItems: 'center', borderWidth: 2, borderColor: '#C8E6C9', flex: 0.8, justifyContent: 'center' },
   aLabel: { color: '#66BB6A', fontWeight: '900', fontSize: 12, letterSpacing: 1 },
-<<<<<<< HEAD
   aText: { fontSize: 22, textAlign: 'center', color: '#2E7D32', fontWeight: 'bold',padding:0 },
   audioBtnSmall: { flexDirection: 'row', alignItems: 'center', marginTop: 10, backgroundColor: '#FFF', paddingVertical: 10, paddingHorizontal: 20, borderRadius: 20, borderWidth: 1, borderColor: '#66BB6A' },
   audioBtnSmallText: { color: '#66BB6A', fontWeight: 'bold', marginLeft: 8, fontSize: 16 },
   statusIndicator: { flexDirection: 'row', alignItems: 'center', width: '100%', marginTop: 10, paddingHorizontal: 20, paddingVertical: 12, borderRadius: 20 },
   timerText: { fontSize: 12, color: '#999', fontWeight: '600', marginTop: 1 },
   buttonRow: { flexDirection: 'row', justifyContent: 'space-between', width: '100%', marginTop: 25 },
-=======
-  aText: { fontSize: 22, textAlign: 'center', color: '#2E7D32', fontWeight: 'bold' },
-  audioBtnSmall: { flexDirection: 'row', alignItems: 'center', marginTop: 15, backgroundColor: '#FFF', paddingVertical: 10, paddingHorizontal: 20, borderRadius: 20, borderWidth: 1, borderColor: '#66BB6A' },
-  audioBtnSmallText: { color: '#66BB6A', fontWeight: 'bold', marginLeft: 8, fontSize: 16 },
-  statusIndicator: { flexDirection: 'row', alignItems: 'center', width: '100%', marginTop: 20, paddingHorizontal: 20, paddingVertical: 12, borderRadius: 20 },
-  timerText: { fontSize: 12, color: '#999', fontWeight: '600', marginTop: 1 },
-  buttonRow: { flexDirection: 'row', justifyContent: 'space-between', width: '100%', marginTop: 15 },
->>>>>>> 4f78456134c108c1f30e37d81a2b3f46537684c6
   btn: { flexDirection: 'row', paddingVertical: 18, borderRadius: 30, width: '47%', alignItems: 'center', justifyContent: 'center', elevation: 5 },
   btnLabel: { color: '#FFF', fontSize: 22, fontWeight: 'bold', marginHorizontal: 8 },
   backBtnColor: { backgroundColor: '#FFC26D' },

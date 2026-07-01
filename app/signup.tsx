@@ -276,25 +276,15 @@ const SignUpScreen = () => {
 const styles = StyleSheet.create({
   mainContainer: { flex: 1, backgroundColor: '#FFF9E9' },
   headerSection: { height: height * 0.25, justifyContent: 'flex-end', paddingHorizontal: 25, paddingBottom: 20 },
-<<<<<<< HEAD
   backButton: { flexDirection: 'row', alignItems: 'center', position: 'absolute', top: 70, left: 25 },
   backText: { fontSize: 18, color: '#B48454', marginLeft: 8, fontWeight: '600' },
   elephantImage: { position: 'absolute', right: 20, bottom: -30, width: width * 0.4, height: height * 0.25, zIndex: 10 },
-=======
-  backButton: { flexDirection: 'row', alignItems: 'center', position: 'absolute', top: 60, left: 25 },
-  backText: { fontSize: 18, color: '#B48454', marginLeft: 8, fontWeight: '600' },
-  elephantImage: { position: 'absolute', right: 20, bottom: -40, width: width * 0.4, height: height * 0.25, zIndex: 10 },
->>>>>>> 4f78456134c108c1f30e37d81a2b3f46537684c6
   formSection: { flex: 1, backgroundColor: '#FFFFFF', borderTopLeftRadius: 50, borderTopRightRadius: 50, paddingHorizontal: 30, paddingTop: 50, elevation: 5 },
   signUpTitle: { fontSize: 42, fontWeight: 'bold', color: '#B48454', marginBottom: 30 },
   inputContainer: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFF', borderWidth: 1.5, borderColor: '#FDEFD9', borderRadius: 20, paddingHorizontal: 15, height: 60, marginBottom: 15 },
   icon: { marginRight: 10 },
   input: { flex: 1, fontSize: 16, color: '#333' },
-<<<<<<< HEAD
   signUpButton: { backgroundColor: '#FFC26D', height: 65, borderRadius: 20, justifyContent: 'center', alignItems: 'center', marginTop: 25, marginBottom: 20 },
-=======
-  signUpButton: { backgroundColor: '#FFC26D', height: 65, borderRadius: 20, justifyContent: 'center', alignItems: 'center', marginTop: 25, marginBottom: 30 },
->>>>>>> 4f78456134c108c1f30e37d81a2b3f46537684c6
   signUpButtonText: { color: '#B48454', fontSize: 24, fontWeight: 'bold' },
   teacherSection: { marginBottom: 15 },
   teacherLabel: { fontSize: 14, color: '#009688', fontWeight: '700', marginBottom: 8, marginLeft: 4 },

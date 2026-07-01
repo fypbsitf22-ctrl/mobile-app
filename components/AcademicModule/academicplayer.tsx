@@ -341,19 +341,11 @@ export default function AcademicPlayer({ role }: PlayerProps) {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#FFF9E9' },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-<<<<<<< HEAD
-  titleRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, marginTop: 25 },
-  backBtn: { backgroundColor: '#C4A6FB', width: 45, height: 45, borderRadius: 22.5, justifyContent: 'center', alignItems: 'center', elevation: 4 },
-  headerCard: { flex: 1, backgroundColor: '#F3EFFF', padding: 15, borderRadius: 25, alignItems: 'center', marginLeft: 25 },
-  headerText: { fontSize: 22, fontWeight: 'bold', color: '#6B46C1' },
-  playerContent: { flex: 1, paddingHorizontal: 20, paddingBottom: -10, justifyContent: 'space-between' },
-=======
   titleRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, marginTop: 10 },
   backBtn: { backgroundColor: '#C4A6FB', width: 45, height: 45, borderRadius: 22.5, justifyContent: 'center', alignItems: 'center', elevation: 4 },
   headerCard: { flex: 1, backgroundColor: '#F3EFFF', padding: 15, borderRadius: 25, alignItems: 'center', marginLeft: 15 },
   headerText: { fontSize: 22, fontWeight: 'bold', color: '#6B46C1' },
   playerContent: { flex: 1, paddingHorizontal: 20, paddingBottom: 20, justifyContent: 'space-between' },
->>>>>>> 4f78456134c108c1f30e37d81a2b3f46537684c6
   readingContainer: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   writingContainer: { flex: 1, marginVertical: 2 },
   canvas: { flex: 1, backgroundColor: '#FFF', borderRadius: 40, overflow: 'hidden', elevation: 5, borderWidth: 2, borderColor: '#EEE' },
@@ -362,20 +354,12 @@ const styles = StyleSheet.create({
   cuteClearBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', alignSelf: 'center', marginTop: 15, backgroundColor: '#FF8B8B', paddingHorizontal: 25, paddingVertical: 12, borderRadius: 30, elevation: 4, borderBottomWidth: 4, borderBottomColor: '#E57373' },
   cuteClearText: { color: '#FFF', fontWeight: '900', fontSize: 20, marginLeft: 8 },
   topSection: { width: '100%', alignItems: 'center' },
-<<<<<<< HEAD
-  instructionRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginBottom: 10 },
-=======
   instructionRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginBottom: 15 },
->>>>>>> 4f78456134c108c1f30e37d81a2b3f46537684c6
   topInstruction: { fontSize: 18, fontWeight: '800', color: '#5E35B1', textAlign: 'center' },
   speakerBtn: { backgroundColor: '#C4A6FB', padding: 8, borderRadius: 15 },
   imageWhiteCard: { backgroundColor: '#FFF', width: width * 0.85, height: height * 0.30, borderRadius: 40, alignItems: 'center', justifyContent: 'center', elevation: 8 },
   mainImage: { width: '80%', height: '80%' },
-<<<<<<< HEAD
-  middleSection: { width: '100%', alignItems: 'center', marginTop: 40 },
-=======
   middleSection: { width: '100%', alignItems: 'center', marginTop: 30 },
->>>>>>> 4f78456134c108c1f30e37d81a2b3f46537684c6
   infoBox: { backgroundColor: '#FCE4EC', flexDirection: 'row', width: '95%', padding: 15, borderRadius: 25, alignItems: 'center', justifyContent: 'space-between', elevation: 4 },
   nameText: { fontSize: 24, fontWeight: 'bold', color: '#E87D88', flex: 1 },
   audioBtn: { backgroundColor: '#FFF', padding: 6, borderRadius: 20 },
