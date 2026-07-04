@@ -3,6 +3,7 @@ import {
   arrayUnion,
   collection,
   doc,
+  getDoc,
   increment,
   onSnapshot,
   orderBy,
@@ -108,70 +109,162 @@ export const firebaseService = {
     }
   },
 
-  // --- Dashboard Save Logic (UPDATED TO FIX LINKING) ---
+  // Add these to your firebaseService object in firebaseService.ts
+
+  // --- Save Incomplete Progress ---
+  saveIncompleteProgress: async (studentId: string, lessonData: any) => {
+    try {
+      const studentRef = doc(db, "students", studentId);
+      const studentSnap = await getDoc(studentRef);
+      
+      let incompleteList = [];
+      if (studentSnap.exists()) {
+        incompleteList = studentSnap.data().incomplete || [];
+      }
+
+      // Remove existing entry for this specific lesson to prevent duplicates
+      const filteredList = incompleteList.filter((item: any) => item.lessonId !== lessonData.lessonId);
+
+      // Add the new progress
+      filteredList.push({
+        subject: lessonData.subject,
+        lessonName: lessonData.lessonName,
+        lessonId: lessonData.lessonId,
+        currentTimer: lessonData.currentTimer,
+        lastAttempted: new Date().toISOString(),
+      });
+
+      // Use setDoc with merge: true instead of updateDoc
+      // We MUST include parentId so the Dashboard query where("parentId", "==", userId) works!
+      await setDoc(studentRef, { 
+        incomplete: filteredList,
+        parentId: studentId, // This links it to the parent dashboard
+        name: auth.currentUser?.displayName || "Student",
+        updatedAt: serverTimestamp()
+      }, { merge: true });
+
+      console.log("Incomplete progress tracked successfully");
+    } catch (e) {
+      console.error("Error saving incomplete:", e);
+    }
+  },
+
+  // --- Update saveLessonProgress to remove from Incomplete ---
   saveLessonProgress: async (studentId: string, lessonData: LessonProgress, role: 'parent' | 'teacher' = 'parent') => {
     try {
       const studentRef = doc(db, "students", studentId);
+      const studentSnap = await getDoc(studentRef);
       
-      // Important: linkField must match what the Dashboard queries (parentId or teacherId)
-      const linkField = role === 'teacher' ? 'teacherId' : 'parentId';
-      
-      // Get the current student's name from Auth to show in the Dashboard
-      const studentName = auth.currentUser?.displayName || "Hifza Khalid";
+      let incompleteList = [];
+      if (studentSnap.exists()) {
+        incompleteList = studentSnap.data().incomplete || [];
+      }
 
-      await setDoc(
-        studentRef,
-        {
-          // 1. Link the student to the dashboard query
-          [linkField]: studentId, 
-          
-          // 2. Set the student name so it's not "New Student"
-          name: studentName,
-          
-          // 3. Add to the history array
-          history: arrayUnion({
-            subject: lessonData.subject,
-            lessonName: lessonData.lessonName,
-            timeSpent: lessonData.timeSpent,
-            starsEarned: lessonData.starsEarned,
-            completedAt: new Date().toISOString(),
-          }),
-          
-          // 4. Update stats
-          totalStars: increment(lessonData.starsEarned),
-          updatedAt: serverTimestamp(),
-        },
-        { merge: true }
-      );
-      console.log("Lesson Progress Saved and Dashboard Linked!");
+      // Filter out this lesson from the incomplete list since it's now finished
+      const updatedIncomplete = incompleteList.filter((item: any) => item.lessonName !== lessonData.lessonName);
+
+      const linkField = role === 'teacher' ? 'teacherId' : 'parentId';
+      const studentName = auth.currentUser?.displayName || "Student";
+
+      await setDoc(studentRef, {
+        [linkField]: studentId,
+        name: studentName,
+        incomplete: updatedIncomplete, // Update the list with the lesson removed
+        history: arrayUnion({
+          subject: lessonData.subject,
+          lessonName: lessonData.lessonName,
+          timeSpent: lessonData.timeSpent,
+          starsEarned: lessonData.starsEarned,
+          completedAt: new Date().toISOString(),
+        }),
+        totalStars: increment(lessonData.starsEarned),
+        updatedAt: serverTimestamp(),
+      }, { merge: true });
+
     } catch (e) {
       console.error("Save Progress Error:", e);
     }
   },
 
   // --- Dashboard Real-time Listener ---
-  subscribeToStudentDashboard: (role: 'parent' | 'teacher', userId: string, callback: (data: any[]) => void) => {
-    try {
-      const filterColumn = role === 'teacher' ? 'teacherId' : 'parentId';
-      
-      // This query looks for docs where parentId == logged-in userId
-      const q = query(
-        collection(db, "students"),
-        where(filterColumn, "==", userId)
-      );
+// Inside services/firebaseService.ts
 
+  // Update this in your firebaseService object in firebaseService.ts
+subscribeToStudentDashboard: (
+  role: 'parent' | 'teacher',
+  identifier: string,
+  callback: (data: any[]) => void
+) => {
+  if (!identifier) { callback([]); return () => {}; }
+
+  // --- PARENT: unchanged, students collection is fine here ---
+  if (role === 'parent') {
+    try {
+      const q = query(collection(db, "students"), where("parentId", "==", identifier));
       return onSnapshot(q, (snapshot) => {
-        const docs = snapshot.docs.map(doc => ({
-          id: doc.id,
-          ...doc.data()
-        }));
+        const docs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         callback(docs);
-      }, (error) => {
-        console.error("Dashboard Sync Error:", error);
       });
     } catch (err) {
-      console.error("Dashboard Query Error:", err);
-      return () => { };
+      return () => {};
     }
-  },
+  }
+
+  // --- TEACHER: registration truth lives in "users", progress lives in "students" ---
+  try {
+    const usersQuery = query(
+      collection(db, "users"),
+      where("teacherId", "==", identifier),
+      where("role", "==", "parent")
+    );
+
+    let registeredList: any[] = [];
+    const studentUnsubs: Record<string, () => void> = {};
+    const studentDataMap: Record<string, any> = {};
+
+    const emit = () => {
+      const merged = registeredList.map(u => ({
+        id: u.id,
+        name: u.name || "Student",
+        grade: u.grade || "N/A",
+        ...studentDataMap[u.id], // history, incomplete, communications, totalStars (if any exist yet)
+      }));
+      callback(merged);
+    };
+
+    const unsubscribeUsers = onSnapshot(usersQuery, (snapshot) => {
+      registeredList = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+      const currentIds = new Set(registeredList.map(u => u.id));
+
+      // stop listening to students no longer linked to this teacher
+      Object.keys(studentUnsubs).forEach(id => {
+        if (!currentIds.has(id)) {
+          studentUnsubs[id]();
+          delete studentUnsubs[id];
+          delete studentDataMap[id];
+        }
+      });
+
+      // start listening to newly registered students' progress doc
+      registeredList.forEach(u => {
+        if (!studentUnsubs[u.id]) {
+          const studentRef = doc(db, "students", u.id);
+          studentUnsubs[u.id] = onSnapshot(studentRef, (snap) => {
+            studentDataMap[u.id] = snap.exists() ? snap.data() : {};
+            emit();
+          });
+        }
+      });
+
+      emit();
+    });
+
+    return () => {
+      unsubscribeUsers();
+      Object.values(studentUnsubs).forEach(unsub => unsub());
+    };
+  } catch (err) {
+    return () => {};
+  }
+},
 };

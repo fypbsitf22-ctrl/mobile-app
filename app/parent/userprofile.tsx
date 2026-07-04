@@ -2,7 +2,7 @@ import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { Audio } from 'expo-av';
 import { useRouter } from 'expo-router';
 import { signOut } from 'firebase/auth';
-import { doc, getDoc, onSnapshot, updateDoc } from 'firebase/firestore';
+import { doc, getDoc, onSnapshot, serverTimestamp, setDoc, updateDoc } from 'firebase/firestore'; // Added setDoc
 import LottieView from 'lottie-react-native';
 import React, { useEffect, useRef, useState } from 'react';
 import {
@@ -20,23 +20,19 @@ export default function UserProfile() {
   const [userData, setUserData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   
-  // --- Audio Config State ---
-const [audioConfig, setAudioConfig] = useState<{
-  updateNameSuccess?: string;
-  updateNameError?: string;
-
-  invalidTeacherCode?: string;
-  wrongTeacherCode?: string;
-  teacherAlreadyAdded?: string;
-  teacherAdded?: string;
-  teacherError?: string;
-
-  removeTeacherConfirm?: string;
-  logoutConfirm?: string;
-}>({});
+  const [audioConfig, setAudioConfig] = useState<{
+    updateNameSuccess?: string;
+    updateNameError?: string;
+    invalidTeacherCode?: string;
+    wrongTeacherCode?: string;
+    teacherAlreadyAdded?: string;
+    teacherAdded?: string;
+    teacherError?: string;
+    removeTeacherConfirm?: string;
+    logoutConfirm?: string;
+  }>({});
   const soundRef = useRef<Audio.Sound | null>(null);
 
-  // --- Cute Alert States ---
   const [cuteModalVisible, setCuteModalVisible] = useState(false);
   const [modalTitle, setModalTitle] = useState('');
   const [modalMsg, setModalMsg] = useState('');
@@ -44,7 +40,6 @@ const [audioConfig, setAudioConfig] = useState<{
   const [onConfirmAction, setOnConfirmAction] = useState<(() => void) | null>(null);
   const scaleAnim = useRef(new Animated.Value(0)).current;
 
-  // --- Input Modals ---
   const [isModalVisible, setIsModalVisible] = useState(false);
   const [newName, setNewName] = useState('');
   const [updating, setUpdating] = useState(false);
@@ -54,19 +49,14 @@ const [audioConfig, setAudioConfig] = useState<{
   const [teacherUpdating, setTeacherUpdating] = useState(false);
   const [editingTeacherIndex, setEditingTeacherIndex] = useState<number>(-1);
 
-  // ─── AUDIO LOGIC ───
   const playSound = async (soundUrl: string | undefined) => {
     if (!soundUrl) return;
     try {
-      if (soundRef.current) {
-        await soundRef.current.unloadAsync();
-      }
+      if (soundRef.current) { await soundRef.current.unloadAsync(); }
       const { sound } = await Audio.Sound.createAsync({ uri: soundUrl });
       soundRef.current = sound;
       await sound.playAsync();
-    } catch (e) {
-      console.log("Error playing sound:", e);
-    }
+    } catch (e) { console.log("Error playing sound:", e); }
   };
 
   const triggerCuteAlert = (
@@ -81,10 +71,7 @@ const [audioConfig, setAudioConfig] = useState<{
     setModalType(type);
     setOnConfirmAction(() => onConfirm || null);
     setCuteModalVisible(true);
-    
-    // Play the specific sound passed to the function
     playSound(soundUrl);
-
     scaleAnim.setValue(0);
     Animated.spring(scaleAnim, { toValue: 1, friction: 4, useNativeDriver: true }).start();
   };
@@ -93,29 +80,25 @@ const [audioConfig, setAudioConfig] = useState<{
     const user = auth.currentUser;
     if (!user) return;
 
-    // 1. Fetch Audio Config (Mapping your specific fields)
     const fetchAudio = async () => {
         const configSnap = await getDoc(doc(db, "app_config", "profile_sounds"));
         if (configSnap.exists()) {
             const data = configSnap.data();
-          setAudioConfig({
-  updateNameSuccess: data.update_name_success_url,
-  updateNameError: data.update_name_error_url,
-
-  invalidTeacherCode: data.invalid_teacher_code_url,
-  wrongTeacherCode: data.wrong_teacher_code_url,
-  teacherAlreadyAdded: data.teacher_already_added_url,
-  teacherAdded: data.teacher_added_url,
-  teacherError: data.teacher_error_url,
-
-  removeTeacherConfirm: data.remove_teacher_confirm_url,
-  logoutConfirm: data.logout_confirm_url,
-});
+            setAudioConfig({
+              updateNameSuccess: data.update_name_success_url,
+              updateNameError: data.update_name_error_url,
+              invalidTeacherCode: data.invalid_teacher_code_url,
+              wrongTeacherCode: data.wrong_teacher_code_url,
+              teacherAlreadyAdded: data.teacher_already_added_url,
+              teacherAdded: data.teacher_added_url,
+              teacherError: data.teacher_error_url,
+              removeTeacherConfirm: data.remove_teacher_confirm_url,
+              logoutConfirm: data.logout_confirm_url,
+            });
         }
     };
     fetchAudio();
 
-    // 2. User Data Listener
     const userRef = doc(db, 'users', user.uid);
     const unsubscribe = onSnapshot(userRef, (docSnap) => {
         if (docSnap.exists()) {
@@ -124,9 +107,7 @@ const [audioConfig, setAudioConfig] = useState<{
           setNewName(data.name || '');
         }
         setLoading(false);
-      }, (error) => {
-        if (error.code === 'permission-denied') console.log('Listener detached.');
-      }
+      }, (error) => { console.log('Listener detached.'); }
     );
 
     return () => {
@@ -135,14 +116,11 @@ const [audioConfig, setAudioConfig] = useState<{
     };
   }, []);
 
-  // ─── NAME UPDATE ───
   const handleUpdateName = async () => {
-   
     setUpdating(true);
     try {
       await updateDoc(doc(db, 'users', auth.currentUser!.uid), { name: newName.trim() });
       setIsModalVisible(false);
-      // Play success2_url for name edit
       triggerCuteAlert("Great job! ✨", "Your name has been updated!", "success", audioConfig.updateNameSuccess);
     } catch {
       triggerCuteAlert("oops", "Could not update name. please try again.", "warning", audioConfig.updateNameError);
@@ -156,8 +134,8 @@ const [audioConfig, setAudioConfig] = useState<{
     return [];
   };
 
-  // ─── TEACHER CODE UPDATE ───
-  const handleSaveTeacherCode = async () => {
+  // ─── TEACHER CODE UPDATE (FIXED TO SYNC WITH DASHBOARD) ───
+const handleSaveTeacherCode = async () => {
     const code = newTeacherCode.trim();
     if (code.length < 5) {
       triggerCuteAlert("Teacher Code Not Found 🔍", "Please ask your teacher for the correct code.", "warning", audioConfig.invalidTeacherCode);
@@ -166,50 +144,47 @@ const [audioConfig, setAudioConfig] = useState<{
 
     setTeacherUpdating(true);
     try {
-      const teacherDocRef = doc(db, "users", code);
-      const teacherDocSnap = await getDoc(teacherDocRef);
+      const studentUid = auth.currentUser!.uid;
 
-     
-
-      const currentList = getTeacherIds();
-      const isDuplicate = currentList.some((t, i) => t === code && i !== editingTeacherIndex);
-      if (isDuplicate) {
-        setTeacherUpdating(false);
-        triggerCuteAlert("Already Added! ✨", "You are already connected.", "success", audioConfig.teacherAlreadyAdded);
-        return;
-      }
-
-      let updatedList = editingTeacherIndex === -1 
-        ? [...currentList, code] 
-        : currentList.map((t, i) => (i === editingTeacherIndex ? code : t));
-
-      await updateDoc(doc(db, 'users', auth.currentUser!.uid), {
-        teacherIds: updatedList,
-        teacherId: updatedList[0] || '',
+      // 1. Update Student's profile in 'users'
+      await updateDoc(doc(db, 'users', studentUid), {
+        teacherId: code,
       });
+
+      // 2. IMPORTANT: Create/Update the record in 'students' so Teacher sees them
+      await setDoc(doc(db, 'students', studentUid), {
+        teacherId: code, // This links them to the Teacher Dashboard
+        parentId: studentUid,
+        name: userData?.name || "Little Learner",
+        updatedAt: serverTimestamp()
+      }, { merge: true });
+
       setIsTeacherModalVisible(false);
-      // Play success_url for teacher code
-      triggerCuteAlert( "Hooray! 🌟",
-  "Your teacher has been added!", "success", audioConfig.teacherAdded);
-    } catch {
-      triggerCuteAlert(  "Oops! 😕", "Something went wrong. Try again!,", "warning", audioConfig.teacherError);
+      triggerCuteAlert("Hooray! 🌟", "Your teacher has been added!", "success", audioConfig.teacherAdded);
+    } catch (e) {
+      triggerCuteAlert("Oops! 😕", "Something went wrong. Try again!", "warning", audioConfig.teacherError);
     } finally { setTeacherUpdating(false); }
   };
-
   const handleRemoveTeacher = (index: number) => {
-    // Play confirm_url
     triggerCuteAlert("Remove? 🗑️", "Do you want to remove this teacher?", "confirm", audioConfig.removeTeacherConfirm, async () => {
         setCuteModalVisible(false);
         const updatedList = getTeacherIds().filter((_, i) => i !== index);
-        await updateDoc(doc(db, 'users', auth.currentUser!.uid), {
+        const studentUid = auth.currentUser!.uid;
+
+        // Update Users
+        await updateDoc(doc(db, 'users', studentUid), {
             teacherIds: updatedList,
+            teacherId: updatedList[0] || '',
+        });
+
+        // Update Students (Dashboard)
+        await updateDoc(doc(db, 'students', studentUid), {
             teacherId: updatedList[0] || '',
         });
     });
   };
 
   const handleLogout = () => {
-    // Play confirm_url
     triggerCuteAlert("Logout? 👋", "Are you sure you want to exit?", "confirm", audioConfig.logoutConfirm, async () => {
         setCuteModalVisible(false);
         router.replace('/login');
@@ -382,7 +357,6 @@ const styles = StyleSheet.create({
   editBtnText: { color: '#FFF', fontSize: 20, fontWeight: 'bold' },
   logoutBtn: { flexDirection: 'row', height: 60, borderRadius: 20, borderWidth: 2, borderColor: '#E87D88', justifyContent: 'center', alignItems: 'center' },
   logoutBtnText: { color: '#E87D88', fontSize: 18, fontWeight: 'bold', marginLeft: 10 },
-
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.85)', justifyContent: 'center', alignItems: 'center' },
   rewardBox: { backgroundColor: '#FFF', padding: 30, borderRadius: 50, alignItems: 'center', elevation: 20, width: '85%', borderWidth: 10 },
   wellDoneText: { fontSize: 28, fontWeight: '900', textAlign: 'center', marginTop: 10 },
