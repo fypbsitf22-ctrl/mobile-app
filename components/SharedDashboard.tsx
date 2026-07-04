@@ -36,7 +36,8 @@ export default function SharedDashboard({ userRole, userId }: { userRole: UserRo
   const [historyExpanded, setHistoryExpanded] = useState(false);
   const [incompleteExpanded, setIncompleteExpanded] = useState(false);
   const [feedbackText, setFeedbackText] = useState("");
-const router = useRouter();
+  const router = useRouter();
+
   useEffect(() => {
     if (!userId) return;
 
@@ -113,11 +114,13 @@ const router = useRouter();
       <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
         <View style={styles.detailHeader}>
           <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-            {onBackToList && (
-              <TouchableOpacity onPress={onBackToList} style={{ marginRight: 15 }}>
+            {/* Logic: If teacher, go back to list. If parent, go back to main menu */}
+            <TouchableOpacity 
+                onPress={onBackToList ? onBackToList : () => router.back()} 
+                style={styles.backButton}
+            >
                 <ArrowLeft size={24} color="#1e293b" />
-              </TouchableOpacity>
-            )}
+            </TouchableOpacity>
             <View>
                 <Text style={styles.welcomeSmall}>Report for {displayStudent.name}</Text>
                 <Text style={styles.detailTitle}>{profileName}'s Panel</Text>
@@ -126,16 +129,16 @@ const router = useRouter();
         </View>
 
       <View style={styles.chartSection}>
-   <Text style={styles.sectionHeading}>Weekly Performance</Text>
-   <View style={styles.chartContainer}>
-      {counts.map((val, i) => (
-        <View key={i} style={styles.barWrapper}>
-          <View style={[styles.bar, { height: (val / max) * 100 + 5, backgroundColor: val > 0 ? '#6366f1' : '#e2e8f0' }]} />
-          <Text style={styles.barLabel}>{days[i]}</Text>
+        <Text style={styles.sectionHeading}>Weekly Performance</Text>
+        <View style={styles.chartContainer}>
+            {counts.map((val, i) => (
+                <View key={i} style={styles.barWrapper}>
+                <View style={[styles.bar, { height: (val / max) * 100 + 5, backgroundColor: val > 0 ? '#6366f1' : '#e2e8f0' }]} />
+                <Text style={styles.barLabel}>{days[i]}</Text>
+                </View>
+            ))}
         </View>
-      ))}
-   </View>
-</View>
+      </View>
 
         <View style={styles.statsRow}>
           <View style={[styles.statCard, { backgroundColor: '#eef2ff' }]}>
@@ -201,13 +204,19 @@ const router = useRouter();
     return <SafeAreaView style={styles.center}><ActivityIndicator size="large" color="#6366f1" /></SafeAreaView>;
   }
 
+  // Teacher Main List View
   if (userRole === 'teacher' && !activeStudent) {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.welcomeHeader}>
-          <View>
-              <Text style={styles.welcomeSmall}>Hello, {profileName} 👋</Text>
-              <Text style={styles.helloText}>Teacher Dashboard</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+            <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+              <ArrowLeft size={24} color="#1e293b" />
+            </TouchableOpacity>
+            <View>
+                <Text style={styles.welcomeSmall}>Hello, {profileName} 👋</Text>
+                <Text style={styles.helloText}>Teacher Dashboard</Text>
+            </View>
           </View>
           <View style={styles.avatarCircle}><User color="#fff" /></View>
         </View>
@@ -233,6 +242,7 @@ const router = useRouter();
     );
   }
 
+  // Progress Detail View (Parents or Teacher looking at specific student)
   return (
     <SafeAreaView style={styles.container}>
       {renderProgressDetail(
@@ -246,10 +256,11 @@ const router = useRouter();
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#f8fafc' },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  welcomeHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 25, paddingTop: 45, backgroundColor: '#fff', borderBottomLeftRadius: 30, borderBottomRightRadius: 30, elevation: 4 },
-  helloText: { fontSize: 26, fontWeight: '900', color: '#1e293b' },
+  welcomeHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 20, paddingTop: 45, backgroundColor: '#fff', borderBottomLeftRadius: 30, borderBottomRightRadius: 30, elevation: 4 },
+  helloText: { fontSize: 22, fontWeight: '900', color: '#1e293b' },
   welcomeSmall: { color: '#6366f1', fontWeight: 'bold', fontSize: 12, textTransform: 'uppercase' },
   avatarCircle: { width: 45, height: 45, borderRadius: 22, backgroundColor: '#6366f1', justifyContent: 'center', alignItems: 'center' },
+  backButton: { marginRight: 15, padding: 5 },
   grid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' },
   studentCard: { width: (width / 2) - 30, backgroundColor: '#fff', padding: 20, borderRadius: 25, alignItems: 'center', marginBottom: 20, elevation: 3 },
   cardInitialBox: { backgroundColor: '#eef2ff', width: 60, height: 60, borderRadius: 20, justifyContent: 'center', alignItems: 'center', marginBottom: 12 },
