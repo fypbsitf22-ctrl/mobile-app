@@ -1,13 +1,14 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Audio } from 'expo-av';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { arrayUnion, collection, doc, getDoc, increment, onSnapshot, orderBy, query, updateDoc, where } from 'firebase/firestore';
+import { collection, doc, getDoc, onSnapshot, orderBy, query, where } from 'firebase/firestore';
 import LottieView from 'lottie-react-native';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Animated, Dimensions, Modal, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import YoutubePlayer from 'react-native-youtube-iframe';
 import { auth, db } from '../../firebaseConfig';
+import { firebaseService } from '../../services/firebaseService'; // Import Service
 import MainHeader from '../MainHeaderShared';
 
 const { width } = Dimensions.get('window');
@@ -31,6 +32,7 @@ export default function RoutineVideoModule({ role }: { role: 'parent' | 'teacher
 
   const starScale = useRef(new Animated.Value(0)).current;
   const soundRef = useRef<Audio.Sound | null>(null); 
+  const isFinishedFlag = useRef(false); // Track if lesson is officially done
 
   const currentItem = items[currentIndex];
   const isLastVideo = currentIndex === items.length - 1;
@@ -38,11 +40,11 @@ export default function RoutineVideoModule({ role }: { role: 'parent' | 'teacher
   // -------------------- TIMER --------------------
   useEffect(() => {
     let interval: any;
-    if (isTimerActive && !videoFinished) {
+    if (isTimerActive && !showRewardModal) {
       interval = setInterval(() => setElapsedTime((prev) => prev + 1), 1000);
     }
     return () => { if (interval) clearInterval(interval); };
-  }, [isTimerActive, videoFinished]);
+  }, [isTimerActive, showRewardModal]);
 
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
@@ -128,6 +130,7 @@ export default function RoutineVideoModule({ role }: { role: 'parent' | 'teacher
     setVideoFinished(false); 
     setElapsedTime(0); 
     setIsTimerActive(false);
+    isFinishedFlag.current = false;
   }, [currentIndex]);
 
   const onStateChange = useCallback((state: string) => {
@@ -136,22 +139,29 @@ export default function RoutineVideoModule({ role }: { role: 'parent' | 'teacher
     if (state === 'ended') setVideoFinished(true);
   }, []);
 
-  // -------------------- NAVIGATION --------------------
+  // -------------------- NEW: HANDLE USER BACK (INCOMPLETE) --------------------
+  const handleUserBack = async () => {
+    // If they spend more than 2 seconds and haven't hit the Green Next button
+    if (!isFinishedFlag.current && role === 'parent' && elapsedTime > 2) {
+      const user = auth.currentUser;
+      if (user && currentItem) {
+        await firebaseService.saveIncompleteProgress(user.uid, {
+          subject: "Daily Routine",
+          lessonName: currentItem.name,
+          lessonId: currentItem.id,
+          currentTimer: formatTime(elapsedTime)
+        });
+      }
+    }
+    router.back();
+  };
+
   const handleBottomBack = () => {
     if (currentIndex > 0) {
       setCurrentIndex(currentIndex - 1);
       return;
     }
-    const prevCatIndex = Number(catIndex) - 1;
-    if (prevCatIndex >= 0) {
-      const prevCategory = categories[prevCatIndex];
-      router.replace({
-        pathname: `/${role}/dailyroutine/routinevideo`,
-        params: { catId: prevCategory.id, title: prevCategory.name, catIndex: prevCatIndex, videoIndex: '0' }
-      });
-    } else {
-      router.back();
-    }
+    handleUserBack(); // Trigger incomplete logic when exiting via bottom back
   };
 
   const handleProcessNext = async () => {
@@ -160,19 +170,31 @@ export default function RoutineVideoModule({ role }: { role: 'parent' | 'teacher
       playSound(appConfig?.warning);
       return;
     }
+
     if (role === 'parent' && currentItem) {
-      try {
-        const userRef = doc(db, 'users', auth.currentUser!.uid);
-        await updateDoc(userRef, { completedLessons: arrayUnion(currentItem.id), stars: increment(1) });
-      } catch (e) { console.log("Firebase Error:", e); }
+      isFinishedFlag.current = true; // Mark as finished
+      await firebaseService.saveLessonProgress(
+        auth.currentUser!.uid,
+        {
+          subject: "Daily Routine",
+          lessonName: currentItem.name,
+          timeSpent: formatTime(elapsedTime),
+          starsEarned: 1,
+        },
+        'parent'
+      );
     }
+
     setShowRewardModal(true);
     playSound(appConfig?.success);
     starScale.setValue(0);
     Animated.spring(starScale, { toValue: 1, friction: 4, useNativeDriver: true }).start();
+
     if (!isLastVideo) {
-      setCurrentIndex(currentIndex + 1);
-      setTimeout(() => setShowRewardModal(false), 5500);
+      setTimeout(() => {
+        setShowRewardModal(false);
+        setCurrentIndex(currentIndex + 1);
+      }, 5500);
     } else {
       setTimeout(() => {
         setShowRewardModal(false);
@@ -229,7 +251,8 @@ export default function RoutineVideoModule({ role }: { role: 'parent' | 'teacher
 
       <View style={styles.headerArea}>
         <View style={styles.topHeaderRow}>
-          <TouchableOpacity style={styles.exitCircle} onPress={() => router.back()}>
+          {/* Changed to handleUserBack */}
+          <TouchableOpacity style={styles.exitCircle} onPress={handleUserBack}>
             <Ionicons name="arrow-back" size={28} color="#FFF" />
           </TouchableOpacity>
           <View style={styles.titlePill}><Text style={styles.categoryTitle}>{title}</Text></View>
@@ -239,7 +262,6 @@ export default function RoutineVideoModule({ role }: { role: 'parent' | 'teacher
 
       <View style={styles.mainContent}>
         <View style={styles.videoCard}>
-          {/* Instruction Row Aligned */}
           <View style={styles.instructionRow}>
               <Text style={styles.instructionText}>Tap the video to watch the lesson 👇</Text>
               <TouchableOpacity 
@@ -274,13 +296,14 @@ export default function RoutineVideoModule({ role }: { role: 'parent' | 'teacher
       </View>
 
       <View style={styles.buttonRow}>
+        {/* Changed to handleBottomBack */}
         <TouchableOpacity style={[styles.btn, styles.backBtnColor]} onPress={handleBottomBack}>
           <Ionicons name="arrow-back" size={24} color="#FFF" />
           <Text style={styles.btnLabel}>Back</Text>
         </TouchableOpacity>
 
         <TouchableOpacity style={[styles.btn, videoFinished ? styles.nextBtnColor : styles.disabledBtnColor]} onPress={handleProcessNext}>
-          <Text style={styles.btnLabel}>{isLastVideo ? 'Next' : 'Next'}</Text>
+          <Text style={styles.btnLabel}>Next</Text>
           <Ionicons name="arrow-forward" size={24} color="#FFF" />
         </TouchableOpacity>
       </View>
@@ -296,34 +319,9 @@ const styles = StyleSheet.create({
   exitCircle: { width: 46, height: 46, borderRadius: 23, backgroundColor: '#66BB6A', justifyContent: 'center', alignItems: 'center', elevation: 4 },
   titlePill: { backgroundColor: '#E8F5E9', paddingHorizontal: 30, paddingVertical: 12, borderRadius: 40, elevation: 2, flexShrink: 1, marginHorizontal: 10 },
   categoryTitle: { fontSize: 22, fontWeight: '900', color: '#66BB6A', textAlign: 'center' },
-  
-  // CORRECTED ALIGNMENT STYLES
-  instructionRow: { 
-    flexDirection: 'row', 
-    alignItems: 'center', 
-    justifyContent: 'center', 
-    marginBottom: 20, 
-    width: '100%',
-    paddingHorizontal: 10
-  },
-  instructionText: { 
-    fontSize: 20, 
-    fontWeight: '800', 
-    color: '#333', 
-    marginRight: 10,
-    flexShrink: 1, // Ensures text doesn't push button out
-    textAlign: 'center'
-  },
-  speakerBtn: { 
-    backgroundColor: '#66BB6A', 
-    width: 44, 
-    height: 44, 
-    borderRadius: 22, 
-    justifyContent: 'center', 
-    alignItems: 'center', 
-    elevation: 3 
-  },
-
+  instructionRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginBottom: 20, width: '100%', paddingHorizontal: 10 },
+  instructionText: { fontSize: 20, fontWeight: '800', color: '#333', marginRight: 10, flexShrink: 1, textAlign: 'center' },
+  speakerBtn: { backgroundColor: '#66BB6A', width: 44, height: 44, borderRadius: 22, justifyContent: 'center', alignItems: 'center', elevation: 3 },
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.85)', justifyContent: 'center', alignItems: 'center' },
   rewardBox: { backgroundColor: '#FFF', padding: 30, borderRadius: 50, alignItems: 'center', elevation: 20, width: '90%', borderWidth: 10, borderColor: '#E8F5E9' },
   wellDoneText: { fontSize: 30, fontWeight: '900', color: '#4CAF50', textAlign: 'center', marginTop: -10, width: '100%' },
@@ -339,7 +337,7 @@ const styles = StyleSheet.create({
   videoWrapper: { width: '100%', borderRadius: 20, overflow: 'hidden', backgroundColor: '#000' },
   statusIndicator: { flexDirection: 'row', alignItems: 'center', marginTop: 20, paddingHorizontal: 25, paddingVertical: 12, borderRadius: 25 },
   statusText: { fontSize: 18, fontWeight: '800' },
-  timerText: { fontSize: 12, color: '#E0E0E0', fontWeight: '600', marginTop: 2 },
+  timerText: { fontSize: 12, color: '#888', fontWeight: '600', marginTop: 2 },
   buttonRow: { flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 20, paddingBottom: 40 },
   btn: { flexDirection: 'row', paddingVertical: 20, borderRadius: 35, width: '47%', alignItems: 'center', justifyContent: 'center', elevation: 5 },
   btnLabel: { color: '#FFF', fontSize: 24, fontWeight: 'bold', marginHorizontal: 10 },

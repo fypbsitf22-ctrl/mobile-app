@@ -1,7 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Audio } from 'expo-av';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-// Changed updateDoc to setDoc to prevent "No document to update" error
 import { arrayUnion, collection, doc, getDoc, getDocs, increment, orderBy, query, setDoc, where } from 'firebase/firestore';
 import LottieView from 'lottie-react-native';
 import React, { useEffect, useRef, useState } from 'react';
@@ -42,6 +41,7 @@ export default function AcademicPlayer({ role }: PlayerProps) {
   const [voiceUrls, setVoiceUrls] = useState<any>(null);
 
   const [elapsedTime, setElapsedTime] = useState(0);
+  const isFinished = useRef(false); // Flag for tracking incomplete status
 
   const starScale = useRef(new Animated.Value(0)).current;
   const soundRef = useRef<Audio.Sound | null>(null);
@@ -101,8 +101,26 @@ export default function AcademicPlayer({ role }: PlayerProps) {
     }
     setAudioPlayed(false);
     setPaths([]); 
+    isFinished.current = false; // Reset flag on index change
   }, [loading, currentIndex, voiceUrls]);
 
+  // -------------------- INCOMPLETE LOGIC --------------------
+  const handleUserBack = async () => {
+    if (!isFinished.current && role === 'parent' && elapsedTime > 2) {
+      const user = auth.currentUser;
+      if (user && currentLesson) {
+        await firebaseService.saveIncompleteProgress(user.uid, {
+          subject: subject as string,
+          lessonName: currentLesson.title || "Lesson",
+          lessonId: currentLesson.id,
+          currentTimer: formatTime(elapsedTime)
+        });
+      }
+    }
+    router.back();
+  };
+
+  // -------------------- COMPLETE LOGIC --------------------
   const handleNext = async () => {
     if (type === 'Writing' && !hasTraced) {
       setShowWarningModal(true);
@@ -119,8 +137,9 @@ export default function AcademicPlayer({ role }: PlayerProps) {
     const user = auth.currentUser;
     if (user && lessons[currentIndex]) {
       try {
-        // FIX: Changed updateDoc to setDoc with {merge: true}
-        // This prevents the "No document to update" error by creating the doc if it's missing
+        isFinished.current = true; // Mark as finished to prevent incomplete save
+        
+        // 1. Update stars and user profile
         await setDoc(doc(db, "users", user.uid), { 
           stars: increment(1), 
           completedLessons: arrayUnion(
@@ -135,15 +154,15 @@ export default function AcademicPlayer({ role }: PlayerProps) {
           )
         }, { merge: true });
 
-        // DASHBOARD UPDATE
-        if (currentIndex === lessons.length - 1) {
-          await firebaseService.saveLessonProgress(user.uid, {
-            subject: subject as string,           
-            lessonName: currentLesson?.title || "Lesson",
-            timeSpent: formatTime(elapsedTime),   
-            starsEarned: 1
-          });
-        }
+        // 2. DASHBOARD UPDATE (SAVE TO HISTORY)
+        // This is the "Complete" tracking part
+        await firebaseService.saveLessonProgress(user.uid, {
+          subject: subject as string,           
+          lessonName: currentLesson?.title || "Lesson",
+          timeSpent: formatTime(elapsedTime),   
+          starsEarned: 1
+        });
+
       } catch (e) {
         console.error("Firebase Update Error:", e);
       }
@@ -188,7 +207,7 @@ export default function AcademicPlayer({ role }: PlayerProps) {
       <MainHeaderShared role={role} />
 
       <View style={styles.titleRow}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+        <TouchableOpacity onPress={handleUserBack} style={styles.backBtn}>
           <Ionicons name="arrow-back" size={30} color="#FFF" />
         </TouchableOpacity>
         <View style={styles.headerCard}>
@@ -298,7 +317,7 @@ export default function AcademicPlayer({ role }: PlayerProps) {
         )}
 
         <View style={styles.buttonRow}>
-          <TouchableOpacity style={[styles.btn, styles.backBtnColor]} onPress={() => currentIndex > 0 ? setCurrentIndex(p => p - 1) : router.back()}>
+          <TouchableOpacity style={[styles.btn, styles.backBtnColor]} onPress={() => currentIndex > 0 ? setCurrentIndex(p => p - 1) : handleUserBack()}>
             <Ionicons name="arrow-back" size={24} color="#FFF" />
             <Text style={styles.btnLabel}>Back</Text>
           </TouchableOpacity>
@@ -354,31 +373,46 @@ export default function AcademicPlayer({ role }: PlayerProps) {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#FFF9E9' },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  titleRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, marginTop: 10 },
+
+  titleRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, marginTop: 25 },
   backBtn: { backgroundColor: '#C4A6FB', width: 45, height: 45, borderRadius: 22.5, justifyContent: 'center', alignItems: 'center', elevation: 4 },
-  headerCard: { flex: 1, backgroundColor: '#F3EFFF', padding: 15, borderRadius: 25, alignItems: 'center', marginLeft: 15 },
-  headerText: { fontSize: 22, fontWeight: 'bold', color: '#6B46C1' },
-  playerContent: { flex: 1, paddingHorizontal: 20, paddingBottom: 20, justifyContent: 'space-between' },
-  readingContainer: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  headerCard: { flex: 1, backgroundColor: '#F3EFFF', padding: 10, borderRadius: 25, alignItems: 'center', justifyContent: 'center', marginLeft: 15 },
+  headerText: { fontSize: 22, fontWeight: 'bold', color: '#6B46C1', textAlign: 'center' },
+  playerContent: { flex: 1, paddingHorizontal: 20, paddingTop: 10, paddingBottom: 15 },
+
+  readingContainer: { flex: 1, alignItems: 'center', justifyContent: 'flex-start' },
   writingContainer: { flex: 1, marginVertical: 2 },
   canvas: { flex: 1, backgroundColor: '#FFF', borderRadius: 40, overflow: 'hidden', elevation: 5, borderWidth: 2, borderColor: '#EEE' },
   progressOverlay: { position: 'absolute', top: 15, right: 20, backgroundColor: 'rgba(255,255,255,0.8)', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 10 },
   progressText: { fontSize: 14, fontWeight: 'bold', color: '#66BB6A' },
   cuteClearBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', alignSelf: 'center', marginTop: 15, backgroundColor: '#FF8B8B', paddingHorizontal: 25, paddingVertical: 12, borderRadius: 30, elevation: 4, borderBottomWidth: 4, borderBottomColor: '#E57373' },
   cuteClearText: { color: '#FFF', fontWeight: '900', fontSize: 20, marginLeft: 8 },
-  topSection: { width: '100%', alignItems: 'center' },
-  instructionRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginBottom: 15 },
-  topInstruction: { fontSize: 18, fontWeight: '800', color: '#5E35B1', textAlign: 'center' },
+ topSection: { width: '100%', alignItems: 'center' },
+
+ instructionRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginBottom: 14 },
+  topInstruction: { fontSize: 18, fontWeight: '800', color: '#5E35B1', textAlign: 'center', flexShrink: 1 },
   speakerBtn: { backgroundColor: '#C4A6FB', padding: 8, borderRadius: 15 },
-  imageWhiteCard: { backgroundColor: '#FFF', width: width * 0.85, height: height * 0.30, borderRadius: 40, alignItems: 'center', justifyContent: 'center', elevation: 8 },
-  mainImage: { width: '80%', height: '80%' },
-  middleSection: { width: '100%', alignItems: 'center', marginTop: 30 },
-  infoBox: { backgroundColor: '#FCE4EC', flexDirection: 'row', width: '95%', padding: 15, borderRadius: 25, alignItems: 'center', justifyContent: 'space-between', elevation: 4 },
-  nameText: { fontSize: 24, fontWeight: 'bold', color: '#E87D88', flex: 1 },
-  audioBtn: { backgroundColor: '#FFF', padding: 6, borderRadius: 20 },
-  statusIndicator: { flexDirection: 'row', alignItems: 'center', marginTop: 15, paddingHorizontal: 20, paddingVertical: 12, borderRadius: 20 },
+
+  imageWhiteCard: { backgroundColor: '#FFF', width: width * 0.85, height: height * 0.29, borderRadius: 40, alignItems: 'center', justifyContent: 'center', elevation: 8, alignSelf: 'center' },
+  mainImage: { width: '90%', height: '90%' },
+
+  middleSection: { width: '100%', alignItems: 'center', marginTop: 24 },
+  infoBox: { backgroundColor: '#FCE4EC', flexDirection: 'row', width: '95%', paddingVertical: 10, paddingHorizontal: 15, borderRadius: 22, alignItems: 'center', justifyContent: 'space-between', elevation: 4, alignSelf: 'center', marginBottom: 12 },
+nameText: { fontSize: 22, fontWeight: 'bold', color: '#E87D88', flex: 1 },
+audioBtn: { backgroundColor: '#FFF', padding: 5, borderRadius: 18 },
+
+   statusIndicator: { 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    width: '100%', 
+    marginTop: 15, 
+    paddingHorizontal: 20, 
+    paddingVertical: 12, 
+    borderRadius: 20,
+  },
   timerText: { fontSize: 12, color: '#999', fontWeight: '600', marginTop: 1 },
-  buttonRow: { flexDirection: 'row', justifyContent: 'space-between', width: '100%' },
+
+  buttonRow: { flexDirection: 'row', justifyContent: 'space-between', width: '100%', alignItems: 'center', marginTop: 'auto', paddingTop: 20 },
   btn: { flexDirection: 'row', paddingVertical: 20, borderRadius: 35, width: '47%', alignItems: 'center', justifyContent: 'center', elevation: 5 },
   btnLabel: { color: '#FFF', fontSize: 24, fontWeight: 'bold', marginHorizontal: 10 },
   backBtnColor: { backgroundColor: '#FFC26D' },

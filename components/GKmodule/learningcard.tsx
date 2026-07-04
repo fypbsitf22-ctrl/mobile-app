@@ -1,12 +1,13 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Audio } from 'expo-av';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { arrayUnion, collection, doc, getDoc, increment, onSnapshot, orderBy, query, updateDoc, where } from 'firebase/firestore';
+import { collection, doc, getDoc, onSnapshot, orderBy, query, where } from 'firebase/firestore';
 import LottieView from 'lottie-react-native';
 import React, { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Animated, Dimensions, Image, Modal, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { auth, db } from '../../firebaseConfig';
+import { firebaseService } from '../../services/firebaseService';
 import MainHeader from '../MainHeaderShared';
 
 const { width, height } = Dimensions.get('window');
@@ -30,11 +31,12 @@ export default function GKLearningCard({ role }: { role: 'parent' | 'teacher' })
 
   // TIMER STATE
   const [elapsedTime, setElapsedTime] = useState(0);
+  const isFinished = useRef(false); // Flag to check if lesson was completed
 
   // -------------------- TIMER LOGIC --------------------
   useEffect(() => {
     let interval: any;
-    if (!loading && !showRewardModal) {
+    if (!loading && !showRewardModal) { 
       interval = setInterval(() => setElapsedTime((prev) => prev + 1), 1000);
     }
     return () => { if (interval) clearInterval(interval); };
@@ -110,8 +112,31 @@ export default function GKLearningCard({ role }: { role: 'parent' | 'teacher' })
   }, [loading, currentIndex, appConfig]);
 
   useEffect(() => {
+    // Reset timer, audio state, and finished flag whenever lesson changes
+    setElapsedTime(0); 
     setAudioPlayed(false);
+    isFinished.current = false;
   }, [currentIndex]);
+
+  // -------------------- BACK BUTTON LOGIC (INCOMPLETE TRACKING) --------------------
+ const handleUserBack = async () => {
+    console.log("Back button pressed. Time spent:", elapsedTime); // Debug log
+    
+    // If user spent time but didn't click the green "Next" button
+    if (!isFinished.current && role === 'parent' && elapsedTime > 2) {
+      const user = auth.currentUser;
+      if (user && currentItem) {
+        console.log("Saving incomplete progress for:", currentItem.name);
+        await firebaseService.saveIncompleteProgress(user.uid, {
+          subject: "GK",
+          lessonName: currentItem.name,
+          lessonId: currentItem.id,
+          currentTimer: formatTime(elapsedTime)
+        });
+      }
+    }
+    router.back();
+  };
 
   const handleNext = async () => {
     if (!currentItem) return;
@@ -125,10 +150,17 @@ export default function GKLearningCard({ role }: { role: 'parent' | 'teacher' })
     if (role === 'parent') {
       const user = auth.currentUser;
       if (user) {
-        await updateDoc(doc(db, 'users', user.uid), { 
-          completedLessons: arrayUnion(currentItem.id), 
-          stars: increment(1) 
-        });
+        isFinished.current = true; // Mark as finished to prevent incomplete save
+        await firebaseService.saveLessonProgress(
+          user.uid,
+          {
+            subject: "GK",
+            lessonName: currentItem.name,
+            timeSpent: formatTime(elapsedTime),
+            starsEarned: 1,
+          },
+          'parent'
+        );
       }
     }
 
@@ -187,7 +219,7 @@ export default function GKLearningCard({ role }: { role: 'parent' | 'teacher' })
 
       {/* HEADER SECTION */}
       <View style={styles.headerRow}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backCircle}>
+        <TouchableOpacity onPress={handleUserBack} style={styles.backCircle}>
           <Ionicons name="arrow-back" size={28} color="#FFF" />
         </TouchableOpacity>
         <View style={styles.titleBadge}>
@@ -197,7 +229,6 @@ export default function GKLearningCard({ role }: { role: 'parent' | 'teacher' })
 
       <View style={styles.content}>
         <View style={styles.topSection}>
-            {/* INSTRUCTION WITH SPEAKER BUTTON */}
             <View style={styles.instructionRow}>
               <Text style={styles.topInstruction}>Tap the speaker and listen 👇</Text>
               <TouchableOpacity 
@@ -214,7 +245,6 @@ export default function GKLearningCard({ role }: { role: 'parent' | 'teacher' })
         </View>
 
         <View style={styles.middleSection}>
-            {/* CLICKABLE BAR - NOW WRAPS THE WHOLE ROW FOR EASIER MID INTERACTION */}
             <TouchableOpacity 
                 activeOpacity={0.7}
                 onPress={async () => {
@@ -238,11 +268,10 @@ export default function GKLearningCard({ role }: { role: 'parent' | 'teacher' })
             </View>
         </View>
 
-        {/* BUTTON ROW MATCHING SAMPLE CODE UI */}
         <View style={styles.buttonRow}>
           <TouchableOpacity 
             style={[styles.btn, styles.backBtnColor]} 
-            onPress={() => currentIndex > 0 ? setCurrentIndex(p => p - 1) : router.back()}
+            onPress={() => currentIndex > 0 ? setCurrentIndex(p => p - 1) : handleUserBack()}
           >
             <Ionicons name="arrow-back" size={24} color="#FFF" />
             <Text style={styles.btnLabel}>Back</Text>
@@ -271,7 +300,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row', 
     alignItems: 'center', 
     paddingHorizontal: 20, 
+
     paddingVertical: 20,
+
     zIndex: 10 
   },
   backCircle: { 
@@ -299,13 +330,15 @@ const styles = StyleSheet.create({
     flex: 1, 
     alignItems: 'center', 
     justifyContent: 'space-between', 
+
     paddingBottom: 30,
+
     paddingHorizontal: 20 
   },
   topSection: {
     width: '100%',
     alignItems: 'center',
-    marginTop: 10,
+    marginTop: -5
   },
   middleSection: {
     width: '100%',
@@ -317,7 +350,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 15,
+    marginBottom: 6,
   },
   topInstruction: { 
     fontSize: 18, 
@@ -339,19 +372,20 @@ const styles = StyleSheet.create({
   imageWhiteCard: { 
     backgroundColor: '#FFF', 
     width: width * 0.85, 
-    height: height * 0.30, 
+    height: height * 0.33, 
     borderRadius: 40, 
     alignItems: 'center', 
     justifyContent: 'center', 
     elevation: 8,
+    marginBottom:  10, 
   },
-  mainImage: { width: '80%', height: '80%' },
+  mainImage: { width: '100%', height: '90%' },
   
   infoBox: { 
   backgroundColor: '#FCE4EC', 
   flexDirection: 'row', 
   width: '95%',            
-  paddingVertical: 12,     
+  paddingVertical: 10,     
   paddingHorizontal: 15,   
   borderRadius: 25,        
   alignItems: 'center', 
@@ -379,7 +413,7 @@ audioBtn: {
     flexDirection: 'row', 
     alignItems: 'center', 
     width: '100%', 
-    marginTop: 15, 
+    marginTop: 10, 
     paddingHorizontal: 20, 
     paddingVertical: 12, 
     borderRadius: 20,

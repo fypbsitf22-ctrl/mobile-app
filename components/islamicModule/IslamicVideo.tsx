@@ -1,13 +1,14 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Audio } from 'expo-av';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { arrayUnion, doc, getDoc, increment, updateDoc } from 'firebase/firestore';
+import { doc, getDoc } from 'firebase/firestore';
 import LottieView from 'lottie-react-native';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Animated, Dimensions, Modal, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import YoutubePlayer from 'react-native-youtube-iframe';
 import { auth, db } from '../../firebaseConfig';
+import { firebaseService } from '../../services/firebaseService'; // Added Service Import
 import MainHeaderShared from '../MainHeaderShared';
 
 const { width } = Dimensions.get('window');
@@ -33,15 +34,16 @@ export default function IslamicVideo({ role }: { role: 'parent' | 'teacher' }) {
 
   const starScale = useRef(new Animated.Value(0)).current;
   const soundRef = useRef<Audio.Sound | null>(null);
+  const isFinishedFlag = useRef(false); // Flag to track completion
 
   // TIMER LOGIC
   useEffect(() => {
     let interval: any;
-    if (isTimerActive && !videoFinished) {
+    if (isTimerActive && !showRewardModal) {
       interval = setInterval(() => setElapsedTime((prev) => prev + 1), 1000);
     }
     return () => { if (interval) clearInterval(interval); };
-  }, [isTimerActive, videoFinished]);
+  }, [isTimerActive, showRewardModal]);
 
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
@@ -109,20 +111,44 @@ export default function IslamicVideo({ role }: { role: 'parent' | 'teacher' }) {
     return (match && match[8].length === 11) ? match[8] : url;
   };
 
+  // -------------------- NEW: HANDLE USER BACK (INCOMPLETE) --------------------
+  const handleUserBack = async () => {
+    // If they spent time but didn't finish the lesson officially
+    if (!isFinishedFlag.current && role === 'parent' && elapsedTime > 2) {
+      const user = auth.currentUser;
+      if (user && itemId) {
+        await firebaseService.saveIncompleteProgress(user.uid, {
+          subject: "Islamic Learning",
+          lessonName: title || data?.name || "Islamic Video",
+          lessonId: itemId,
+          currentTimer: formatTime(elapsedTime)
+        });
+      }
+    }
+    router.back();
+  };
+
   const handleProcessFinish = async () => {
     if (!videoFinished) {
       setShowWarningModal(true);
       playSound(appConfig?.warning);
       return;
     }
+
     if (role === 'parent' && auth.currentUser) {
-      try {
-        await updateDoc(doc(db, 'users', auth.currentUser.uid), { 
-          completedLessons: arrayUnion(itemId), 
-          stars: increment(1) 
-        });
-      } catch (e) { console.log("Star update error:", e); }
+      isFinishedFlag.current = true; // Mark as finished
+      await firebaseService.saveLessonProgress(
+        auth.currentUser.uid,
+        {
+          subject: "Islamic Learning",
+          lessonName: title || data?.name || "Islamic Video",
+          timeSpent: formatTime(elapsedTime),
+          starsEarned: 1,
+        },
+        'parent'
+      );
     }
+
     setShowRewardModal(true);
     playSound(appConfig?.success);
     starScale.setValue(0);
@@ -161,8 +187,8 @@ export default function IslamicVideo({ role }: { role: 'parent' | 'teacher' }) {
             </View>
             <Text style={styles.warningTitle}>Almost There! 👋</Text>
              <Text style={styles.warningText}>
-                           We need to <Text style={{ fontWeight: '900', color: '#5A9BD5' }}>listen to the audio</Text> first.{"\n"}
-                           Finish listening then press next.
+                           We need to <Text style={{ fontWeight: '900', color: '#5A9BD5' }}>watch the video</Text> first.{"\n"}
+                           Finish watching then press next.
                        </Text>
             <TouchableOpacity style={styles.warningBtn} onPress={() => setShowWarningModal(false)}>
               <Text style={styles.warningBtnText}>I'll Watch! 👍</Text>
@@ -174,7 +200,8 @@ export default function IslamicVideo({ role }: { role: 'parent' | 'teacher' }) {
       {/* HEADER */}
       <View style={styles.headerArea}>
         <View style={styles.topHeaderRow}>
-          <TouchableOpacity style={styles.exitCircle} onPress={() => router.back()}>
+          {/* Changed to handleUserBack */}
+          <TouchableOpacity style={styles.exitCircle} onPress={handleUserBack}>
             <Ionicons name="arrow-back" size={28} color="#FFF" />
           </TouchableOpacity>
           <View style={styles.titlePill}>
@@ -187,7 +214,6 @@ export default function IslamicVideo({ role }: { role: 'parent' | 'teacher' }) {
       {/* MAIN CONTENT */}
       <View style={styles.mainContent}>
         <View style={styles.videoCard}>
-          {/* Instruction Row Aligned with Speaker */}
           <View style={styles.instructionRow}>
             <Text style={styles.instructionText}>Tap the video to watch the lesson 👇</Text>
             <TouchableOpacity 
@@ -227,7 +253,8 @@ export default function IslamicVideo({ role }: { role: 'parent' | 'teacher' }) {
 
       {/* BUTTONS */}
       <View style={styles.buttonRow}>
-        <TouchableOpacity style={[styles.btn, styles.backBtnColor]} onPress={() => router.back()}>
+        {/* Changed to handleUserBack */}
+        <TouchableOpacity style={[styles.btn, styles.backBtnColor]} onPress={handleUserBack}>
           <Ionicons name="arrow-back" size={24} color="#FFF" />
           <Text style={styles.btnLabel}>Back</Text>
         </TouchableOpacity>
@@ -249,53 +276,25 @@ const styles = StyleSheet.create({
   exitCircle: { width: 46, height: 46, borderRadius: 23, backgroundColor: '#5A9BD5', justifyContent: 'center', alignItems: 'center', elevation: 4 },
   titlePill: { backgroundColor: '#E1F5FE', paddingHorizontal: 30, paddingVertical: 12, borderRadius: 40, elevation: 2, flexShrink: 1, marginHorizontal: 10 },
   categoryTitle: { fontSize: 22, fontWeight: '900', color: '#5A9BD5', textAlign: 'center' },
-  
-  // Instruction Row Alignment
-  instructionRow: { 
-    flexDirection: 'row', 
-    alignItems: 'center', 
-    justifyContent: 'center', 
-    marginBottom: 20, 
-    width: '100%',
-    paddingHorizontal: 10
-  },
-  instructionText: { 
-    fontSize: 20, 
-    fontWeight: '800', 
-    color: '#333', 
-    marginRight: 10,
-    flexShrink: 1,
-    textAlign: 'center'
-  },
-  speakerBtn: { 
-    backgroundColor: '#5A9BD5', 
-    width: 44, 
-    height: 44, 
-    borderRadius: 22, 
-    justifyContent: 'center', 
-    alignItems: 'center', 
-    elevation: 3 
-  },
-
+  instructionRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginBottom: 20, width: '100%', paddingHorizontal: 10 },
+  instructionText: { fontSize: 20, fontWeight: '800', color: '#333', marginRight: 10, flexShrink: 1, textAlign: 'center' },
+  speakerBtn: { backgroundColor: '#5A9BD5', width: 44, height: 44, borderRadius: 22, justifyContent: 'center', alignItems: 'center', elevation: 3 },
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.85)', justifyContent: 'center', alignItems: 'center' },
   rewardBox: { backgroundColor: '#FFF', padding: 30, borderRadius: 50, alignItems: 'center', elevation: 20, width: '90%', borderWidth: 10, borderColor: '#E1F5FE' },
   wellDoneText: { fontSize: 30, fontWeight: '900', color: '#4CAF50', textAlign: 'center', marginTop: -10, width: '100%' },
   rewardSubText: { fontSize: 20, color: '#555', fontWeight: '700', marginTop: 10, textAlign: 'center', lineHeight: 28 },
-  
-   warningBox: { width: '85%', backgroundColor: '#FFF', padding: 30, borderRadius: 45, alignItems: 'center' },
+  warningBox: { width: '85%', backgroundColor: '#FFF', padding: 30, borderRadius: 45, alignItems: 'center' },
   iconCircle: { width: 120, height: 120, borderRadius: 60, justifyContent: 'center', alignItems: 'center', marginBottom: 20 },
   warningTitle: { fontSize: 26, fontWeight: '900', color: '#5A9BD5', marginBottom: 10 },
   warningText: { fontSize: 17, color: '#555', textAlign: 'center', fontWeight: '600', marginBottom: 25, lineHeight: 24 },
   warningBtn: { backgroundColor: '#66BB6A', paddingHorizontal: 40, paddingVertical: 15, borderRadius: 25 },
   warningBtnText: { color: '#FFF', fontSize: 20, fontWeight: 'bold' },
-
   mainContent: { padding: 20, flex: 1, justifyContent: 'flex-start', marginTop: 10 },
   videoCard: { backgroundColor: '#FFF', borderRadius: 30, padding: 20, elevation: 5, alignItems: 'center' },
   videoWrapper: { width: '100%', borderRadius: 20, overflow: 'hidden', backgroundColor: '#000' },
   statusIndicator: { flexDirection: 'row', alignItems: 'center', marginTop: 20, paddingHorizontal: 25, paddingVertical: 12, borderRadius: 25, width: '100%' },
   statusText: { fontSize: 18, fontWeight: '800' },
   timerText: { fontSize: 12, color: '#AAA', fontWeight: '600', marginTop: 2 },
-
   buttonRow: { flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 20, paddingBottom: 40 },
   btn: { flexDirection: 'row', paddingVertical: 20, borderRadius: 35, width: '47%', alignItems: 'center', justifyContent: 'center', elevation: 5 },
   btnLabel: { color: '#FFF', fontSize: 24, fontWeight: 'bold', marginHorizontal: 10 },

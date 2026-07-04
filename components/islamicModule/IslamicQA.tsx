@@ -1,12 +1,13 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Audio } from 'expo-av';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { arrayUnion, collection, doc, getDoc, getDocs, increment, onSnapshot, orderBy, query, updateDoc, where } from 'firebase/firestore';
+import { collection, doc, getDoc, getDocs, onSnapshot, orderBy, query, where } from 'firebase/firestore';
 import LottieView from 'lottie-react-native';
 import React, { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Animated, Dimensions, Modal, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { auth, db } from '../../firebaseConfig';
+import { firebaseService } from '../../services/firebaseService'; // Added Service Import
 import MainHeaderShared from '../MainHeaderShared';
 const { width } = Dimensions.get('window');
 
@@ -28,6 +29,7 @@ export default function IslamicQA({ role }: { role: 'parent' | 'teacher' }) {
   const starScale = useRef(new Animated.Value(0)).current;
   const soundRef = useRef<Audio.Sound | null>(null);
   const [elapsedTime, setElapsedTime] = useState(0);
+  const isFinished = useRef(false); // Flag for incomplete logic
 
   // -------------------- TIMER --------------------
   useEffect(() => {
@@ -61,7 +63,6 @@ export default function IslamicQA({ role }: { role: 'parent' | 'teacher' }) {
 
     if (!catId) return;
 
-    // Fetch all documents where categoryID matches (Each doc is a single question)
     const q = query(
         collection(db, "islamic_items"), 
         where("categoryID", "==", catId), 
@@ -72,7 +73,6 @@ export default function IslamicQA({ role }: { role: 'parent' | 'teacher' }) {
         const fetched = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
         setAllItems(fetched);
 
-        // Find which index we should start at based on itemId
         if (itemId) {
             const startIdx = fetched.findIndex(item => item.id === itemId);
             if (startIdx !== -1) setCurrentIndex(startIdx);
@@ -100,10 +100,27 @@ export default function IslamicQA({ role }: { role: 'parent' | 'teacher' }) {
   useEffect(() => {
     setQListened(false);
     setAListened(false);
+    isFinished.current = false;
   }, [currentIndex]);
 
   const bothListened = qListened && aListened;
   const currentQuestion = allItems[currentIndex];
+
+  // -------------------- INCOMPLETE LOGIC --------------------
+  const handleUserBack = async () => {
+    if (!isFinished.current && role === 'parent' && elapsedTime > 2) {
+      const user = auth.currentUser;
+      if (user && currentQuestion) {
+        await firebaseService.saveIncompleteProgress(user.uid, {
+          subject: "Islamic Learning",
+          lessonName: `${currentQuestion.name} (Q ${currentIndex + 1})`,
+          lessonId: currentQuestion.id,
+          currentTimer: formatTime(elapsedTime)
+        });
+      }
+    }
+    router.back();
+  };
 
   // -------------------- NAVIGATION LOGIC --------------------
   const handleNext = async () => {
@@ -115,12 +132,18 @@ export default function IslamicQA({ role }: { role: 'parent' | 'teacher' }) {
       return;
     }
 
-    // Award star for this specific question/document
     if (role === 'parent' && auth.currentUser) {
-        await updateDoc(doc(db, 'users', auth.currentUser.uid), { 
-          completedLessons: arrayUnion(currentQuestion.id),
-          stars: increment(1),
-        });
+        isFinished.current = true; // MARK AS FINISHED
+        await firebaseService.saveLessonProgress(
+          auth.currentUser.uid,
+          {
+            subject: "Islamic Learning",
+            lessonName: currentQuestion.name,
+            timeSpent: formatTime(elapsedTime),
+            starsEarned: 1,
+          },
+          'parent'
+        );
     }
 
     setShowRewardModal(true);
@@ -129,184 +152,83 @@ export default function IslamicQA({ role }: { role: 'parent' | 'teacher' }) {
     Animated.spring(starScale, { toValue: 1, friction: 4, useNativeDriver: true }).start();
 
     setTimeout(async () => {
-  setShowRewardModal(false);
+      setShowRewardModal(false);
 
-  if (currentIndex < allItems.length - 1) {
-    setCurrentIndex(prev => prev + 1);
-  } else {
-    try {
-      const currentCatId = catId as string;
-
-      const currentSubDoc = await getDoc(doc(db, "islamic_subcategories", currentCatId));
-      if (!currentSubDoc.exists()) {
-        router.back();
-        return;
-      }
-
-      const parentCategoryID = currentSubDoc.data().categoryID;
-
-      const subQuery = query(
-        collection(db, "islamic_subcategories"),
-        where("categoryID", "==", parentCategoryID),
-        orderBy("uploaded", "asc")
-      );
-
-      const subSnap = await getDocs(subQuery);
-
-      const subList = subSnap.docs.map(d => ({
-        id: d.id,
-        ...(d.data() as { name: string; categoryID: string })
-      }));
-
-      const currentSubIndex = subList.findIndex(s => s.id === currentCatId);
-
-      if (currentSubIndex !== -1 && currentSubIndex < subList.length - 1) {
-        const nextSub = subList[currentSubIndex + 1];
-
-        const q = query(
-          collection(db, "islamic_items"),
-          where("categoryID", "==", nextSub.id),
-          orderBy("uploaded", "asc")
-        );
-
-        const snap = await getDocs(q);
-
-        if (!snap.empty) {
-          const firstDoc = snap.docs[0];
-          const lessonData = firstDoc.data();
-
-          const basePath = role === 'parent' ? '/parent/islamic' : '/teacher/islamic';
-
-          if (lessonData.type === "video" || lessonData.video) {
-            router.replace({
-              pathname: `${basePath}/islamicvideo` as any,
-              params: { itemId: firstDoc.id, title: nextSub.name }
-            });
-          } else if (lessonData.type === "qa") {
-            router.replace({
-              pathname: `${basePath}/islamicqa` as any,
-              params: {
-                itemId: firstDoc.id,
-                catId: nextSub.id,
-                title: nextSub.name
-              }
-            });
-          } else {
-            router.replace({
-              pathname: `${basePath}/islamicsteps` as any,
-              params: {
-                itemId: firstDoc.id,
-                title: nextSub.name
-              }
-            });
+      if (currentIndex < allItems.length - 1) {
+        setCurrentIndex(prev => prev + 1);
+      } else {
+        try {
+          const currentCatId = catId as string;
+          const currentSubDoc = await getDoc(doc(db, "islamic_subcategories", currentCatId));
+          if (!currentSubDoc.exists()) {
+            router.back();
+            return;
           }
 
-          return;
+          const parentCategoryID = currentSubDoc.data().categoryID;
+          const subQuery = query(
+            collection(db, "islamic_subcategories"),
+            where("categoryID", "==", parentCategoryID),
+            orderBy("uploaded", "asc")
+          );
+
+          const subSnap = await getDocs(subQuery);
+          const subList = subSnap.docs.map(d => ({
+            id: d.id,
+            ...(d.data() as { name: string; categoryID: string })
+          }));
+
+          const currentSubIndex = subList.findIndex(s => s.id === currentCatId);
+
+          if (currentSubIndex !== -1 && currentSubIndex < subList.length - 1) {
+            const nextSub = subList[currentSubIndex + 1];
+            const q = query(
+              collection(db, "islamic_items"),
+              where("categoryID", "==", nextSub.id),
+              orderBy("uploaded", "asc")
+            );
+
+            const snap = await getDocs(q);
+            if (!snap.empty) {
+              const firstDoc = snap.docs[0];
+              const lessonData = firstDoc.data();
+              const basePath = role === 'parent' ? '/parent/islamic' : '/teacher/islamic';
+
+              if (lessonData.type === "video" || lessonData.video) {
+                router.replace({
+                  pathname: `${basePath}/islamicvideo` as any,
+                  params: { itemId: firstDoc.id, title: nextSub.name }
+                });
+              } else if (lessonData.type === "qa") {
+                router.replace({
+                  pathname: `${basePath}/islamicqa` as any,
+                  params: { itemId: firstDoc.id, catId: nextSub.id, title: nextSub.name }
+                });
+              } else {
+                router.replace({
+                  pathname: `${basePath}/islamicsteps` as any,
+                  params: { itemId: firstDoc.id, title: nextSub.name }
+                });
+              }
+              return;
+            }
+          }
+          router.back();
+        } catch (e) {
+          console.log("Next Lesson Error:", e);
+          router.back();
         }
       }
-
-      router.back();
-
-    } catch (e) {
-      console.log("Next Lesson Error:", e);
-      router.back();
-    }
-  }
-}, 5500);
+    }, 5500);
   }
 
   const handleBack = async () => {
-  // If inside current lesson → go to previous question
-  if (currentIndex > 0) {
-    setCurrentIndex(currentIndex - 1);
-    return;
-  }
-
-  // ✅ FIRST QUESTION → GO TO PREVIOUS LESSON
-  try {
-    const currentCatId = catId as string;
-
-    // 1. Get current subcategory
-    const currentSubDoc = await getDoc(doc(db, "islamic_subcategories", currentCatId));
-    if (!currentSubDoc.exists()) {
-      router.back();
+    if (currentIndex > 0) {
+      setCurrentIndex(currentIndex - 1);
       return;
     }
-
-    const parentCategoryID = currentSubDoc.data().categoryID;
-
-    // 2. Get all subcategories of same parent
-    const subQuery = query(
-      collection(db, "islamic_subcategories"),
-      where("categoryID", "==", parentCategoryID),
-      orderBy("uploaded", "asc")
-    );
-
-    const subSnap = await getDocs(subQuery);
-
-    const subList = subSnap.docs.map(d => ({
-      id: d.id,
-      ...(d.data() as { name: string; categoryID: string })
-    }));
-
-    // 3. Find current index
-    const currentSubIndex = subList.findIndex(s => s.id === currentCatId);
-
-    // 4. If previous lesson exists → go to it
-    if (currentSubIndex > 0) {
-      const prevSub = subList[currentSubIndex - 1];
-
-      // Fetch last question of previous lesson
-      const q = query(
-        collection(db, "islamic_items"),
-        where("categoryID", "==", prevSub.id),
-        orderBy("uploaded", "asc")
-      );
-
-      const snap = await getDocs(q);
-
-      if (!snap.empty) {
-        const lastDoc = snap.docs[snap.docs.length - 1]; // 👈 last question
-        const lessonData = lastDoc.data();
-
-        const basePath = role === 'parent' ? '/parent/islamic' : '/teacher/islamic';
-
-        if (lessonData.type === "video" || lessonData.video) {
-          router.replace({
-            pathname: `${basePath}/islamicvideo` as any,
-            params: { itemId: lastDoc.id, title: prevSub.name }
-          });
-        } else if (lessonData.type === "qa") {
-          router.replace({
-            pathname: `${basePath}/islamicqa` as any,
-            params: {
-              itemId: lastDoc.id,
-              catId: prevSub.id,
-              title: prevSub.name
-            }
-          });
-        } else {
-          router.replace({
-            pathname: `${basePath}/islamicsteps` as any,
-            params: {
-              itemId: lastDoc.id,
-              title: prevSub.name
-            }
-          });
-        }
-
-        return;
-      }
-    }
-
-    // 5. If NO previous lesson → go back to subcategory screen
-    router.back();
-
-  } catch (e) {
-    console.log("Back Navigation Error:", e);
-    router.back();
-  }
-};
+    handleUserBack();
+  };
 
   if (loading) return <View style={styles.center}><ActivityIndicator size="large" color="#5A9BD5" /></View>;
   if (!currentQuestion) return <View style={styles.center}><Text>No Questions Found</Text></View>;
@@ -340,7 +262,7 @@ export default function IslamicQA({ role }: { role: 'parent' | 'teacher' }) {
            </Text>
             <TouchableOpacity style={styles.warningBtn} onPress={() => setShowWarningModal(false)}>
               <Text style={styles.warningBtnText}>
-                 {currentQuestion?.type === 'Writing' ? "I'll keep tracing! ✏️" : "I'll Listen! 🔊"}
+                 I'll Listen! 🔊
               </Text>
             </TouchableOpacity>
           </View>
@@ -348,7 +270,9 @@ export default function IslamicQA({ role }: { role: 'parent' | 'teacher' }) {
       </Modal>
 
       <View style={styles.headerRow}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backCircle}><Ionicons name="arrow-back" size={28} color="#FFF" /></TouchableOpacity>
+        <TouchableOpacity onPress={handleUserBack} style={styles.backCircle}>
+          <Ionicons name="arrow-back" size={28} color="#FFF" />
+        </TouchableOpacity>
         <View style={styles.titleBadge}><Text style={styles.headerTitle} numberOfLines={1}>{currentQuestion?.name}</Text></View>
       </View>
 
@@ -377,15 +301,14 @@ export default function IslamicQA({ role }: { role: 'parent' | 'teacher' }) {
                     <Ionicons name="volume-high" size={24} color="#66BB6A" />
                     <Text style={styles.audioBtnSmallText}>Listen to Answer</Text>
                 </TouchableOpacity>
-
-                <View style={[styles.statusIndicator, { backgroundColor: bothListened ? '#E8F5E9' : '#F5F5F5' }]}>
-                    <Ionicons name={bothListened ? "checkmark-circle" : "play-circle"} size={28} color={bothListened ? "#4CAF50" : "#555"} />
-                    <View style={{ marginLeft: 14 }}>
-                        <Text style={styles.timerText}>Learning Time: {formatTime(elapsedTime)}</Text>
-                    </View>
-                </View>
+            </View>
+                         <View style={styles.timerContainer}>
+                <Ionicons name="time-outline" size={20} color="#999" />
+                <Text style={styles.timerText}>Learning Time: {formatTime(elapsedTime)}</Text>
             </View>
         </View>
+
+           
 
         <View style={styles.buttonRow}>
           <TouchableOpacity style={[styles.btn, styles.backBtnColor]} onPress={handleBack}>
@@ -394,51 +317,152 @@ export default function IslamicQA({ role }: { role: 'parent' | 'teacher' }) {
           </TouchableOpacity>
           
           <TouchableOpacity style={[styles.btn, bothListened ? styles.nextBtnColor : styles.disabledBtnColor]} onPress={handleNext}>
-            <Text style={styles.btnLabel}>{currentIndex === allItems.length - 1 ? 'Next' : 'Finish'}</Text>
+            <Text style={styles.btnLabel}>{currentIndex === allItems.length - 1 ? 'Finish' : 'Next'}</Text>
             <Ionicons name="arrow-forward" size={24} color="#FFF" />
           </TouchableOpacity>
-        </View>
+              </View>
       </View>
     </SafeAreaView>
   );
 }
 
-// ... (keep styles exactly as they were)
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#FFF9E9' },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+
   headerRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, marginTop: 25 },
   backCircle: { backgroundColor: '#5A9BD5', width: 46, height: 46, borderRadius: 23, justifyContent: 'center', alignItems: 'center', elevation: 4 },
   titleBadge: { backgroundColor: '#E1F5FE', flex: 1, marginLeft: 15, paddingVertical: 10, paddingHorizontal: 20, borderRadius: 30, alignItems: 'center', elevation: 2 },
   headerTitle: { fontSize: 20, fontWeight: 'bold', color: '#5A9BD5' },
   content: { flex: 1, alignItems: 'center', paddingHorizontal: 20, paddingBottom: 10 },
-  instructionRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginVertical: 15, width: '100%' },
+
+  instructionRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginVertical: 9, width: '100%' },
   topInstruction: { fontSize: 18, fontWeight: '800', color: '#000', marginRight: 10, textAlign: 'center' },
   speakerBtn: { backgroundColor: '#5A9BD5', width: 44, height: 44, borderRadius: 22, justifyContent: 'center', alignItems: 'center', elevation: 3 },
-  learningArea: { flex: 1, width: '100%' },
-  questionCard: { backgroundColor: '#FFF', borderRadius: 25, padding: 20, elevation: 4, alignItems: 'center', borderWidth: 2, borderColor: '#E1F5FE', marginBottom: 15 },
-  labelContainer: { backgroundColor: '#F0F8FF', paddingHorizontal: 15, paddingVertical: 5, borderRadius: 10, marginBottom: 15 },
-  qLabel: { color: '#5A9BD5', fontWeight: '900', fontSize: 12, letterSpacing: 1 },
+  
+  learningArea: { 
+    flex: 1, 
+    width: '100%',
+  },
+
+  questionCard: { 
+    backgroundColor: '#FFF', 
+    borderRadius: 25, 
+    padding: 20, 
+    elevation: 4, 
+    alignItems: 'center', 
+    borderWidth: 2, 
+    borderColor: '#E1F5FE', 
+    marginBottom: 5,
+    flex: 1,
+    justifyContent: 'center',
+    minHeight: 180,
+  },
+
+  labelContainer: { 
+    backgroundColor: '#F0F8FF', 
+    paddingHorizontal: 15, 
+    paddingVertical: 5, 
+    borderRadius: 10, 
+    marginBottom: 10,
+    alignSelf: 'center',
+  },
+
+  qLabel: { 
+    color: '#5A9BD5', 
+    fontWeight: '900', 
+    fontSize: 15, 
+    letterSpacing: 1,
+  },
+
   qText: { fontSize: 22, fontWeight: 'bold', color: '#333', textAlign: 'center', marginBottom: 15 },
-  audioBtnLarge: { flexDirection: 'row', backgroundColor: '#5A9BD5', paddingVertical: 12, paddingHorizontal: 30, borderRadius: 25, alignItems: 'center', elevation: 3 },
+ audioBtnLarge: { 
+    flexDirection: 'row', 
+    backgroundColor: '#5A9BD5', 
+    paddingVertical: 10,      // ← Keep as is
+    paddingHorizontal: 30,    // ← Keep as is
+    borderRadius: 25, 
+    alignItems: 'center', 
+    elevation: 3 
+},
   audioBtnText: { color: '#FFF', fontWeight: 'bold', marginLeft: 10, fontSize: 18 },
-  answerCard: { backgroundColor: '#F1F8E9', borderRadius: 25, padding: 20, elevation: 4, alignItems: 'center', borderWidth: 2, borderColor: '#C8E6C9', flex: 0.8, justifyContent: 'center' },
-  aLabel: { color: '#66BB6A', fontWeight: '900', fontSize: 12, letterSpacing: 1 },
-  aText: { fontSize: 22, textAlign: 'center', color: '#2E7D32', fontWeight: 'bold',padding:0 },
-  audioBtnSmall: { flexDirection: 'row', alignItems: 'center', marginTop: 10, backgroundColor: '#FFF', paddingVertical: 10, paddingHorizontal: 20, borderRadius: 20, borderWidth: 1, borderColor: '#66BB6A' },
+
+  answerCard: { 
+    backgroundColor: '#F1F8E9', 
+    borderRadius: 25, 
+    padding: 20, 
+    elevation: 4, 
+    alignItems: 'center', 
+    borderWidth: 2, 
+    borderColor: '#C8E6C9', 
+    flex: 1,
+    justifyContent: 'center',
+   minHeight: 180,
+   
+  },
+
+  aLabel: { 
+    color: '#66BB6A', 
+    fontWeight: '900', 
+    fontSize: 15, 
+    letterSpacing: 1,
+  },
+
+ aText: { 
+    fontSize: 22, 
+    textAlign: 'center', 
+    color: '#2E7D32', 
+    fontWeight: 'bold', 
+    padding: 0,
+    marginBottom: 15,  // ← ADD THIS LINE (same as qText)
+},
+ audioBtnSmall: { 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    marginTop: 10, 
+    backgroundColor: '#FFF', 
+    paddingVertical: 10,      // ← CHANGE from 10 to 10 (already same)
+    paddingHorizontal: 30,    // ← CHANGE from 20 to 30 (make same as question)
+    borderRadius: 20, 
+    borderWidth: 1, 
+    borderColor: '#66BB6A' 
+},
   audioBtnSmallText: { color: '#66BB6A', fontWeight: 'bold', marginLeft: 8, fontSize: 16 },
-  statusIndicator: { flexDirection: 'row', alignItems: 'center', width: '100%', marginTop: 10, paddingHorizontal: 20, paddingVertical: 12, borderRadius: 20 },
-  timerText: { fontSize: 12, color: '#999', fontWeight: '600', marginTop: 1 },
+
+  timerContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    backgroundColor: '#F5F5F5',
+    borderRadius: 15,
+    marginTop: 10,
+    width: '100%',
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
+  },
+
+  timerText: { 
+    fontSize: 14, 
+    color: '#666', 
+    fontWeight: '600', 
+    marginLeft: 10,
+  },
+
   buttonRow: { flexDirection: 'row', justifyContent: 'space-between', width: '100%', marginTop: 25 },
+
   btn: { flexDirection: 'row', paddingVertical: 18, borderRadius: 30, width: '47%', alignItems: 'center', justifyContent: 'center', elevation: 5 },
   btnLabel: { color: '#FFF', fontSize: 22, fontWeight: 'bold', marginHorizontal: 8 },
   backBtnColor: { backgroundColor: '#FFC26D' },
   nextBtnColor: { backgroundColor: '#66BB6A' },
   disabledBtnColor: { backgroundColor: '#BDBDBD' },
+  
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.85)', justifyContent: 'center', alignItems: 'center' },
   rewardBox: { backgroundColor: '#FFF', padding: 30, borderRadius: 50, alignItems: 'center', elevation: 20, width: '90%', borderWidth: 10, borderColor: '#E8F5E9' },
   wellDoneText: { fontSize: 26, fontWeight: '900', color: '#4CAF50', textAlign: 'center', marginTop: 10 },
   rewardSubText: { fontSize: 18, color: '#555', fontWeight: '700', marginTop: 10, textAlign: 'center' },
+  
   warningBox: { width: '85%', backgroundColor: '#FFF', padding: 30, borderRadius: 45, alignItems: 'center' },
   iconCircle: { width: 100, height: 100, borderRadius: 50, justifyContent: 'center', alignItems: 'center', marginBottom: 20 },
   warningTitle: { fontSize: 26, fontWeight: '900', color: '#5A9BD5', marginBottom: 10 },
