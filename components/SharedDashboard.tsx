@@ -1,263 +1,311 @@
-import { useRouter } from 'expo-router';
+import { arrayUnion, doc, getDoc, setDoc } from 'firebase/firestore';
 import {
-  Award,
+  ArrowLeft,
   Bell,
-  BookOpen,
-  Calendar,
   CheckCircle,
   ChevronRight,
   Clock,
-  FileText,
-  MapPin,
-  MessageSquare,
-  Settings,
-  TrendingUp,
-  Users
+  Send, // Added for feedback
+  User
 } from 'lucide-react-native';
-import { useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
+  ActivityIndicator,
+  Alert,
   Dimensions,
-  FlatList,
-  RefreshControl,
   SafeAreaView,
   ScrollView,
-  StatusBar,
   StyleSheet,
   Text,
+  TextInput, // Added for typing messages
   TouchableOpacity,
   View
 } from 'react-native';
-
-// --- 1. DEFINE TYPES (These fix the red errors on lines 35 and 39) ---
-export type UserRole = 'parent' | 'teacher';
-
-interface DashboardStat {
-  label: string;
-  value: string;
-  icon: any;
-  color: string;
-}
-
-interface ScheduleItem {
-  id: string;
-  title: string;
-  time: string;
-  location: string;
-  type: 'class' | 'meeting' | 'event';
-}
-
-interface DashboardData {
-  userName: string;
-  stats: DashboardStat[];
-  schedule: ScheduleItem[];
-  performance: { label: string; score: number }[];
-  announcements: { id: string; title: string; date: string; preview: string }[];
-}
+import { db } from '../firebaseConfig';
+import { firebaseService } from '../services/firebaseService';
 
 const { width } = Dimensions.get('window');
 
-// --- 2. MOCK DATA FUNCTION (Fixes red error on line 44) ---
-const getMockData = (role: UserRole): DashboardData => ({
-  userName: role === 'parent' ? "Mr. Thompson" : "Sarah Jenkins",
-  stats: role === 'parent' ? [
-    { label: 'Attendance', value: '98%', icon: CheckCircle, color: '#10B981' },
-    { label: 'Avg Grade', value: 'A-', icon: TrendingUp, color: '#3B82F6' },
-    { label: 'Rank', value: '4/32', icon: Award, color: '#F59E0B' },
-  ] : [
-    { label: 'Students', value: '124', icon: Users, color: '#3B82F6' },
-    { label: 'Attendance', value: '92%', icon: CheckCircle, color: '#10B981' },
-    { label: 'To Grade', value: '12', icon: FileText, color: '#EF4444' },
-  ],
-  schedule: [
-    { id: '1', title: role === 'parent' ? 'Mathematics Class' : '10th Grade Math', time: '08:30 AM', location: 'Room 204', type: 'class' },
-    { id: '2', title: 'Parent-Teacher Meet', time: '02:00 PM', location: 'Conference Hall', type: 'meeting' },
-  ],
-  performance: [
-    { label: 'Math', score: 92 },
-    { label: 'Science', score: 85 },
-    { label: 'English', score: 78 },
-    { label: 'History', score: 88 },
-  ],
-  announcements: [
-    { id: 'a1', title: 'Science Fair 2024', date: 'Oct 15', preview: 'Registration for the annual science fair is now open...' },
-    { id: 'a2', title: 'Winter Break', date: 'Oct 12', preview: 'School will remain closed from Dec 20 to Jan 5.' },
-  ]
-});
+type UserRole = 'parent' | 'teacher';
 
-// --- 3. HELPER COMPONENTS ---
-const SectionTitle = ({ title }: { title: string }) => (
-  <Text style={styles.sectionTitle}>{title}</Text>
-);
-
-const ActionItem = ({ icon: Icon, label, color }: any) => (
-  <TouchableOpacity style={styles.actionItem}>
-    <View style={[styles.actionIcon, { backgroundColor: `${color}10` }]}>
-      <Icon size={24} color={color} />
-    </View>
-    <Text style={styles.actionLabel}>{label}</Text>
-  </TouchableOpacity>
-);
-
-// --- 4. MAIN COMPONENT ---
-export default function SharedDashboard({ userRole }: { userRole: UserRole }) {
-  const router = useRouter();
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [data, setData] = useState<DashboardData | null>(null);
-
-  const loadData = async () => {
-    setRefreshing(true);
-    setTimeout(() => {
-      setData(getMockData(userRole));
-      setLoading(false);
-      setRefreshing(false);
-    }, 1200);
-  };
+export default function SharedDashboard({ userRole, userId }: { userRole: UserRole, userId: string }) {
+  const [data, setData] = useState<any[]>([]);
+  const [profileName, setProfileName] = useState<string>("User"); 
+  const [activeStudent, setActiveStudent] = useState<any | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  
+  // State for typing new feedback
+  const [feedbackText, setFeedbackText] = useState("");
 
   useEffect(() => {
-    loadData();
-  }, [userRole]);
+    if (!userId) return;
 
-  if (loading && !refreshing) {
+    const fetchProfile = async () => {
+      try {
+        const userRef = doc(db, "users", userId);
+        const userSnap = await getDoc(userRef);
+        if (userSnap.exists()) {
+          setProfileName(userSnap.data().name || "User");
+        }
+      } catch (err) {
+        console.error("Error fetching profile:", err);
+      }
+    };
+
+    const unsubscribe = firebaseService.subscribeToStudentDashboard(
+      userRole,
+      userId,
+      (fetched) => {
+        setData(fetched || []);
+        setIsLoading(false);
+      }
+    );
+
+    fetchProfile();
+    return () => unsubscribe();
+  }, [userId, userRole]);
+
+  // --- Logic to calculate Weekly Performance ---
+  const getWeeklyStats = (history: any[]) => {
+    const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    const counts = [0, 0, 0, 0, 0, 0, 0];
+    if (history) {
+      history.forEach(item => {
+        const date = new Date(item.completedAt);
+        const day = date.getDay(); // 0 is Sunday
+        const index = day === 0 ? 6 : day - 1; // Convert to Mon=0, Sun=6
+        counts[index]++;
+      });
+    }
+    const max = Math.max(...counts, 5); // Base scale of 5
+    return { days, counts, max };
+  };
+
+  // --- Function to Send Feedback ---
+  const handleSendMessage = async () => {
+    const student = activeStudent || (data.length > 0 ? data[0] : null);
+    if (!student || !student.id) {
+        Alert.alert("Note", "Please finish a lesson in the student app first to link the profile.");
+        return;
+    }
+    if (!feedbackText.trim()) return;
+
+    try {
+      const studentRef = doc(db, "students", student.id);
+      await setDoc(studentRef, {
+        communications: arrayUnion({
+          sender: profileName,
+          date: new Date().toLocaleDateString() + " " + new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}),
+          content: feedbackText,
+          type: 'feedback'
+        })
+      }, { merge: true });
+
+      setFeedbackText(""); // Clear input
+    } catch (err) {
+      console.error("Error sending message:", err);
+    }
+  };
+
+  const renderProgressDetail = (student: any, onBack?: () => void) => {
+    const displayStudent = student || { name: "Student", grade: "Pre-K" };
+    const { days, counts, max } = getWeeklyStats(student?.history);
+
+    return (
+      <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
+        <View style={styles.detailHeader}>
+          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+            {onBack && (
+              <TouchableOpacity onPress={onBack} style={styles.backBtn}>
+                <ArrowLeft size={24} color="#1e293b" />
+              </TouchableOpacity>
+            )}
+            <View>
+                <Text style={styles.welcomeSmall}>Report for {displayStudent.name}</Text>
+                <Text style={styles.detailTitle}>{profileName}'s Panel</Text>
+            </View>
+          </View>
+          <TouchableOpacity><Bell size={24} color="#6366f1" /></TouchableOpacity>
+        </View>
+
+        {/* 5. Dynamic Weekly Performance Chart */}
+        <View style={styles.chartSection}>
+           <Text style={styles.sectionHeading}>Weekly Performance</Text>
+           <View style={styles.chartContainer}>
+              {counts.map((val, i) => (
+                <View key={i} style={styles.barWrapper}>
+                  <View style={[styles.bar, { height: (val / max) * 100 + 5, backgroundColor: val > 0 ? '#6366f1' : '#e2e8f0' }]} />
+                  <Text style={styles.barLabel}>{days[i]}</Text>
+                </View>
+              ))}
+           </View>
+           <Text style={styles.placeholderText}>Progress updates live as lessons finish</Text>
+        </View>
+
+        <View style={styles.statsRow}>
+          <View style={[styles.statCard, { backgroundColor: '#eef2ff' }]}>
+            <Text style={styles.statNum}>{student?.history?.length || 0}</Text>
+            <Text style={styles.statLabel}>Completed</Text>
+          </View>
+          <View style={[styles.statCard, { backgroundColor: '#fff7ed' }]}>
+            <Text style={styles.statNum}>{student?.incomplete?.length || 0}</Text>
+            <Text style={styles.statLabel}>Incomplete</Text>
+          </View>
+        </View>
+
+        <View style={styles.section}>
+          <Text style={styles.sectionHeading}>Lesson History</Text>
+          {student?.history?.length > 0 ? student.history.map((h: any, i: number) => (
+            <View key={i} style={styles.historyItem}>
+              <View>
+                <Text style={styles.modTag}>{h.subject}</Text>
+                <Text style={styles.lesName}>{h.lessonName}</Text>
+              </View>
+              <View style={styles.timerContainer}>
+                <Clock size={12} color="#10b981" style={{marginRight: 4}}/>
+                <Text style={styles.lesTimer}>{h.timeSpent}</Text>
+              </View>
+            </View>
+          )) : (
+             <View style={styles.emptyState}>
+               <CheckCircle size={30} color="#f1f5f9" />
+               <Text style={styles.emptyText}>No lessons completed yet.</Text>
+             </View>
+          )}
+        </View>
+
+        {/* 2. Incomplete Lessons */}
+        <View style={styles.section}>
+          <Text style={[styles.sectionHeading, { color: '#f59e0b' }]}>Incomplete </Text>
+          {student?.incomplete?.length > 0 ? student.incomplete.map((inc: any, i: number) => (
+            <View key={i} style={styles.incItem}>
+              <View>
+                <Text style={styles.modTag}>{inc.subject}</Text>
+                <Text style={styles.lesName}>{inc.lessonName}</Text>
+              </View>
+              <Text style={styles.timerText}>{inc.currentTimer}</Text>
+            </View>
+          )) : <Text style={styles.emptyText}>No active incomplete modules.</Text>}
+        </View>
+
+        {/* 4. Feedback & Inbox (Input Added Here) */}
+        <View style={styles.section}>
+          <Text style={[styles.sectionHeading, { color: '#3b82f6' }]}>Feedback & Inbox</Text>
+          
+          {/* New Input Row */}
+          <View style={styles.inputRow}>
+            <TextInput 
+              style={styles.input}
+              placeholder="Send a message to student..."
+              value={feedbackText}
+              onChangeText={setFeedbackText}
+              multiline
+            />
+            <TouchableOpacity style={styles.sendBtn} onPress={handleSendMessage}>
+              <Send size={18} color="#fff" />
+            </TouchableOpacity>
+          </View>
+
+          {student?.communications?.length > 0 ? student.communications.map((c: any, i: number) => (
+            <View key={i} style={[styles.msgCard, c.type === 'feedback' ? styles.msgBlue : styles.msgGray]}>
+              <Text style={styles.msgSender}>{c.sender} • {c.date}</Text>
+              <Text style={styles.msgContent}>{c.content}</Text>
+            </View>
+          )) : <Text style={styles.emptyText}>Inbox is currently empty.</Text>}
+        </View>
+      </ScrollView>
+    );
+  };
+
+  if (isLoading) {
+    return (
+      <SafeAreaView style={styles.center}>
+        <ActivityIndicator size="large" color="#6366f1" />
+        <Text style={styles.loadingText}>Syncing Database...</Text>
+      </SafeAreaView>
+    );
+  }
+
+  if (userRole === 'teacher' && !activeStudent) {
     return (
       <SafeAreaView style={styles.container}>
-        <View style={{ padding: 20 }}>
-          <View style={[styles.skeleton, { height: 40, width: '60%', marginBottom: 20 }]} />
-          <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-            <View style={[styles.skeleton, { height: 100, width: '30%', borderRadius: 15 }]} />
-            <View style={[styles.skeleton, { height: 100, width: '30%', borderRadius: 15 }]} />
-            <View style={[styles.skeleton, { height: 100, width: '30%', borderRadius: 15 }]} />
+        <View style={styles.welcomeHeader}>
+          <View>
+            <Text style={styles.welcomeSmall}>Hello, {profileName} 👋</Text>
+            <Text style={styles.helloText}>Teacher Dashboard</Text>
           </View>
-          <View style={[styles.skeleton, { height: 180, width: '100%', marginTop: 25, borderRadius: 20 }]} />
+          <View style={styles.avatarCircle}><User color="#fff" /></View>
         </View>
+        <ScrollView contentContainerStyle={{ padding: 20 }}>
+          <Text style={styles.sectionHeading}>Registered Students ({data.length})</Text>
+          <View style={styles.grid}>
+            {data.length > 0 ? data.map(s => (
+              <TouchableOpacity key={s.id} style={styles.studentCard} onPress={() => setActiveStudent(s)}>
+                <Text style={styles.cardInitial}>{s.name[0]}</Text>
+                <Text style={styles.cardName}>{s.name}</Text>
+                <Text style={styles.cardGrade}>{s.grade}</Text>
+                <ChevronRight size={16} color="#6366f1" style={{ marginTop: 10 }} />
+              </TouchableOpacity>
+            )) : <Text style={styles.emptyText}>No students linked to your teacher account.</Text>}
+          </View>
+        </ScrollView>
       </SafeAreaView>
     );
   }
 
   return (
     <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="dark-content" />
-      <View style={styles.header}>
-        <View>
-          <Text style={styles.greeting}>Welcome Back,</Text>
-          <Text style={styles.userName}>{data?.userName} 👋</Text>
-        </View>
-        <TouchableOpacity 
-          style={styles.notificationBtn}
-          onPress={() => router.push(`/${userRole}/notifications` as any)}
-        >
-          <Bell size={22} color="#1E293B" />
-          <View style={styles.notifBadge} />
-        </TouchableOpacity>
-      </View>
-
-      <ScrollView 
-        contentContainerStyle={styles.scrollContainer}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={loadData} colors={['#3B82F6']} />}
-        showsVerticalScrollIndicator={false}
-      >
-        <View style={styles.statsGrid}>
-          {data?.stats.map((item, idx) => (
-            <View key={idx} style={styles.statCard}>
-              <View style={[styles.statIconWrapper, { backgroundColor: `${item.color}15` }]}>
-                <item.icon size={20} color={item.color} />
-              </View>
-              <Text style={styles.statValue}>{item.value}</Text>
-              <Text style={styles.statLabel}>{item.label}</Text>
-            </View>
-          ))}
-        </View>
-
-        <View style={styles.actionRow}>
-          <ActionItem icon={BookOpen} label="Courses" color="#4F46E5" />
-          <ActionItem icon={MessageSquare} label="Chat" color="#10B981" />
-          <ActionItem icon={Calendar} label="Events" color="#F59E0B" />
-          <ActionItem icon={Settings} label="Setup" color="#64748B" />
-        </View>
-
-        <SectionTitle title="Today's Schedule" />
-        {data?.schedule.map((item) => (
-          <View key={item.id} style={styles.scheduleItem}>
-            <View style={[styles.scheduleIndicator, { backgroundColor: item.type === 'meeting' ? '#F59E0B' : '#3B82F6' }]} />
-            <View style={{ flex: 1, marginLeft: 15 }}>
-              <Text style={styles.scheduleTitle}>{item.title}</Text>
-              <View style={styles.scheduleMeta}>
-                <Clock size={14} color="#94A3B8" />
-                <Text style={styles.metaText}>{item.time}</Text>
-                <MapPin size={14} color="#94A3B8" style={{ marginLeft: 10 }} />
-                <Text style={styles.metaText}>{item.location}</Text>
-              </View>
-            </View>
-            <ChevronRight size={18} color="#CBD5E1" />
-          </View>
-        ))}
-
-        <SectionTitle title={userRole === 'parent' ? "Academic Progress" : "Class Average"} />
-        <View style={styles.card}>
-          {data?.performance.map((item, idx) => (
-            <View key={idx} style={styles.progressRow}>
-              <Text style={styles.progressLabel}>{item.label}</Text>
-              <View style={styles.progressBg}>
-                <View style={[styles.progressFill, { width: `${item.score}%` }]} />
-              </View>
-              <Text style={styles.progressValue}>{item.score}%</Text>
-            </View>
-          ))}
-        </View>
-
-        <SectionTitle title="Announcements" />
-        <FlatList
-          horizontal
-          data={data?.announcements}
-          showsHorizontalScrollIndicator={false}
-          keyExtractor={(item) => item.id}
-          renderItem={({ item }) => (
-            <View style={styles.announcementCard}>
-              <Text style={styles.announcementTitle}>{item.title}</Text>
-              <Text style={styles.announcementDate}>{item.date}</Text>
-              <Text style={styles.announcementText} numberOfLines={2}>{item.preview}</Text>
-            </View>
-          )}
-        />
-        <View style={{ height: 30 }} />
-      </ScrollView>
+      {renderProgressDetail(
+        activeStudent || data[0], 
+        userRole === 'teacher' ? () => setActiveStudent(null) : undefined
+      )}
     </SafeAreaView>
   );
 }
 
-// --- 5. STYLES (Fixes all red errors on lines 57-65) ---
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F8FAFC' },
-  skeleton: { backgroundColor: '#E2E8F0', borderRadius: 8 },
-  header: { flexDirection: 'row', justifyContent: 'space-between', padding: 20, backgroundColor: '#FFF', alignItems: 'center' },
-  greeting: { fontSize: 14, color: '#64748B', fontWeight: '500' },
-  userName: { fontSize: 22, fontWeight: 'bold', color: '#1E293B' },
-  notificationBtn: { padding: 10, backgroundColor: '#F1F5F9', borderRadius: 12 },
-  notifBadge: { position: 'absolute', top: 10, right: 10, width: 8, height: 8, borderRadius: 4, backgroundColor: '#EF4444', borderWidth: 2, borderColor: '#FFF' },
-  scrollContainer: { paddingHorizontal: 20 },
-  statsGrid: { flexDirection: 'row', justifyContent: 'space-between', marginVertical: 20 },
-  statCard: { backgroundColor: '#FFF', width: (width - 60) / 3, padding: 15, borderRadius: 16, alignItems: 'center', elevation: 2, shadowOpacity: 0.05, shadowColor: '#000', shadowOffset: { width: 0, height: 2 } },
-  statIconWrapper: { padding: 8, borderRadius: 10, marginBottom: 8 },
-  statValue: { fontSize: 18, fontWeight: 'bold', color: '#1E293B' },
-  statLabel: { fontSize: 11, color: '#64748B' },
-  actionRow: { flexDirection: 'row', justifyContent: 'space-between', backgroundColor: '#FFF', padding: 20, borderRadius: 20, marginBottom: 25 },
-  actionItem: { alignItems: 'center' },
-  actionIcon: { width: 50, height: 50, borderRadius: 15, justifyContent: 'center', alignItems: 'center', marginBottom: 5 },
-  actionLabel: { fontSize: 12, fontWeight: '600', color: '#475569' },
-  sectionTitle: { fontSize: 18, fontWeight: 'bold', color: '#1E293B', marginBottom: 15, marginTop: 10 },
-  scheduleItem: { backgroundColor: '#FFF', padding: 15, borderRadius: 16, flexDirection: 'row', alignItems: 'center', marginBottom: 10 },
-  scheduleIndicator: { width: 4, height: 35, borderRadius: 2 },
-  scheduleTitle: { fontSize: 15, fontWeight: '600', color: '#1E293B' },
-  scheduleMeta: { flexDirection: 'row', alignItems: 'center', marginTop: 4 },
-  metaText: { fontSize: 12, color: '#94A3B8', marginLeft: 4 },
-  card: { backgroundColor: '#FFF', padding: 20, borderRadius: 20 },
-  progressRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 15 },
-  progressLabel: { width: 60, fontSize: 13, color: '#64748B' },
-  progressBg: { flex: 1, height: 8, backgroundColor: '#F1F5F9', borderRadius: 4, marginHorizontal: 10 },
-  progressFill: { height: 8, backgroundColor: '#3B82F6', borderRadius: 4 },
-  progressValue: { width: 35, fontSize: 13, fontWeight: 'bold', color: '#1E293B' },
-  announcementCard: { backgroundColor: '#FFF', width: width * 0.7, padding: 15, borderRadius: 16, marginRight: 15, borderLeftWidth: 4, borderLeftColor: '#3B82F6' },
-  announcementTitle: { fontSize: 14, fontWeight: 'bold', color: '#1E293B' },
-  announcementDate: { fontSize: 11, color: '#94A3B8', marginVertical: 4 },
-  announcementText: { fontSize: 12, color: '#64748B' },
+  container: { flex: 1, backgroundColor: '#f8fafc' },
+  center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  loadingText: { marginTop: 10, fontWeight: 'bold', color: '#6366f1' },
+  welcomeHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 25, paddingTop: 45, backgroundColor: '#fff', borderBottomLeftRadius: 30, borderBottomRightRadius: 30, elevation: 4 },
+  helloText: { fontSize: 26, fontWeight: '900', color: '#1e293b' },
+  welcomeSmall: { color: '#6366f1', fontWeight: 'bold', fontSize: 12, textTransform: 'uppercase' },
+  avatarCircle: { width: 45, height: 45, borderRadius: 22, backgroundColor: '#6366f1', justifyContent: 'center', alignItems: 'center' },
+  grid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' },
+  studentCard: { width: (width / 2) - 30, backgroundColor: '#fff', padding: 20, borderRadius: 25, alignItems: 'center', marginBottom: 20, elevation: 3 },
+  cardInitial: { fontSize: 24, fontWeight: 'bold', color: '#6366f1', backgroundColor: '#eef2ff', width: 50, height: 50, textAlign: 'center', lineHeight: 50, borderRadius: 15, marginBottom: 10 },
+  cardName: { fontWeight: 'bold', fontSize: 16, color: '#1e293b' },
+  cardGrade: { fontSize: 12, color: '#94a3b8', marginTop: 2 },
+  detailHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 20, paddingTop: 40 },
+  detailTitle: { fontSize: 22, fontWeight: '900', color: '#1e293b' },
+  backBtn: { marginRight: 15 },
+  chartSection: { backgroundColor: '#fff', marginHorizontal: 20, padding: 20, borderRadius: 25, marginBottom: 20, elevation: 1 },
+  chartContainer: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', height: 120, paddingHorizontal: 10, marginBottom: 10 },
+  barWrapper: { alignItems: 'center', flex: 1 },
+  bar: { width: 12, borderRadius: 6, marginBottom: 5 },
+  barLabel: { fontSize: 10, color: '#94a3b8', fontWeight: 'bold' },
+  placeholderText: { fontSize: 10, color: '#94a3b8', marginTop: 10, fontStyle: 'italic', textAlign: 'center' },
+  statsRow: { flexDirection: 'row', gap: 15, paddingHorizontal: 20, marginBottom: 20 },
+  statCard: { flex: 1, padding: 20, borderRadius: 20, alignItems: 'center', elevation: 1 },
+  statNum: { fontSize: 24, fontWeight: '900', color: '#1e293b' },
+  statLabel: { fontSize: 12, color: '#64748b', fontWeight: 'bold' },
+  section: { backgroundColor: '#fff', marginHorizontal: 20, borderRadius: 25, padding: 20, marginBottom: 20, elevation: 1 },
+  sectionHeading: { fontSize: 14, fontWeight: '900', marginBottom: 15, letterSpacing: 1, color: '#1e293b' },
+  inputRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#f8fafc', borderRadius: 15, padding: 10, marginBottom: 15, borderWidth: 1, borderColor: '#e2e8f0' },
+  input: { flex: 1, paddingHorizontal: 10, fontSize: 14, color: '#1e293b' },
+  sendBtn: { backgroundColor: '#6366f1', padding: 10, borderRadius: 12, marginLeft: 10 },
+  historyItem: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#f1f5f9' },
+  timerContainer: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#f0fdf4', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8 },
+  modTag: { fontSize: 9, fontWeight: 'bold', color: '#6366f1', textTransform: 'uppercase' },
+  lesName: { fontSize: 15, fontWeight: 'bold', color: '#334155' },
+  lesTimer: { fontWeight: '900', color: '#10b981', fontSize: 12 },
+  emptyState: { alignItems: 'center', padding: 20 },
+  emptyText: { color: '#94a3b8', fontSize: 12, fontStyle: 'italic', textAlign: 'center' },
+  incItem: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 14, backgroundColor: '#fff7ed', borderRadius: 15, marginBottom: 10 },
+  timerText: { color: '#f59e0b', fontWeight: 'bold', fontFamily: 'monospace' },
+  msgCard: { padding: 15, borderRadius: 15, marginBottom: 10 },
+  msgBlue: { backgroundColor: '#eff6ff', borderLeftWidth: 4, borderLeftColor: '#3b82f6' },
+  msgGray: { backgroundColor: '#f8fafc' },
+  msgSender: { fontSize: 10, fontWeight: 'bold', color: '#64748b' },
+  msgContent: { fontSize: 13, color: '#334155', marginTop: 5, lineHeight: 18 },
 });

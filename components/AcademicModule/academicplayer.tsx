@@ -1,7 +1,8 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Audio } from 'expo-av';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { arrayUnion, collection, doc, getDoc, getDocs, increment, orderBy, query, updateDoc, where } from 'firebase/firestore';
+// Changed updateDoc to setDoc to prevent "No document to update" error
+import { arrayUnion, collection, doc, getDoc, getDocs, increment, orderBy, query, setDoc, where } from 'firebase/firestore';
 import LottieView from 'lottie-react-native';
 import React, { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Animated, Dimensions, GestureResponderEvent, Image, Modal, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
@@ -9,6 +10,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Path, Svg, SvgUri } from 'react-native-svg';
 import { auth, db } from '../../firebaseConfig';
+import { firebaseService } from '../../services/firebaseService';
 import MainHeaderShared from '../MainHeaderShared';
 
 const { width, height } = Dimensions.get('window');
@@ -114,26 +116,36 @@ export default function AcademicPlayer({ role }: PlayerProps) {
       return;
     }
 
-    if (role === 'parent' && lessons[currentIndex]) {
-      const user = auth.currentUser;
-      if (user) {
-        try {
-          await updateDoc(doc(db, "users", user.uid), { 
-            stars: increment(1), 
-            completedLessons: arrayUnion(
-              type === 'Writing'
-                ? {
-                    id: lessons[currentIndex].id,
-                    type: "Writing",
-                    traced: true,
-                    strokes: paths.length
-                  }
-                : lessons[currentIndex].id
-            )
+    const user = auth.currentUser;
+    if (user && lessons[currentIndex]) {
+      try {
+        // FIX: Changed updateDoc to setDoc with {merge: true}
+        // This prevents the "No document to update" error by creating the doc if it's missing
+        await setDoc(doc(db, "users", user.uid), { 
+          stars: increment(1), 
+          completedLessons: arrayUnion(
+            type === 'Writing'
+              ? {
+                  id: lessons[currentIndex].id,
+                  type: "Writing",
+                  traced: true,
+                  strokes: paths.length
+                }
+              : lessons[currentIndex].id
+          )
+        }, { merge: true });
+
+        // DASHBOARD UPDATE
+        if (currentIndex === lessons.length - 1) {
+          await firebaseService.saveLessonProgress(user.uid, {
+            subject: subject as string,           
+            lessonName: currentLesson?.title || "Lesson",
+            timeSpent: formatTime(elapsedTime),   
+            starsEarned: 1
           });
-        } catch (e) {
-          console.error("Update Error:", e);
         }
+      } catch (e) {
+        console.error("Firebase Update Error:", e);
       }
     }
 
@@ -146,6 +158,7 @@ export default function AcademicPlayer({ role }: PlayerProps) {
       setShowReward(false);
       if (currentIndex < lessons.length - 1) {
         setCurrentIndex(prev => prev + 1);
+        setElapsedTime(0);
       } else {
         router.back();
       }
@@ -316,24 +329,24 @@ export default function AcademicPlayer({ role }: PlayerProps) {
       </Modal>
 
      <Modal visible={showWarningModal} transparent animationType="slide">
-  <View style={styles.modalOverlay}>
-    <View style={styles.warningBox}>
-      <Ionicons name="alert-circle" size={70} color="#FF9800" />
-      <Text style={styles.warningTitle}>Almost There! 👋</Text>
-      <Text style={styles.warningText}>
-        {type === 'Writing' 
-          ? "Almost there! Trace the picture more so you can continue." 
-          : "We need to listen to the audio first. Finish listening then press next."}
-      </Text>
-      
-      <TouchableOpacity style={styles.warningBtn} onPress={() => setShowWarningModal(false)}>
-        <Text style={styles.warningBtnText}>
-          {type === 'Writing' ? "I'll keep tracing! ✏️" : "I'll Listen! 🔊"}
-        </Text>
-      </TouchableOpacity>
-    </View>
-  </View>
-</Modal>
+        <View style={styles.modalOverlay}>
+          <View style={styles.warningBox}>
+            <Ionicons name="alert-circle" size={70} color="#FF9800" />
+            <Text style={styles.warningTitle}>Almost There! 👋</Text>
+            <Text style={styles.warningText}>
+              {type === 'Writing' 
+                ? "Almost there! Trace the picture more so you can continue." 
+                : "We need to listen to the audio first. Finish listening then press next."}
+            </Text>
+            
+            <TouchableOpacity style={styles.warningBtn} onPress={() => setShowWarningModal(false)}>
+              <Text style={styles.warningBtnText}>
+                {type === 'Writing' ? "I'll keep tracing! ✏️" : "I'll Listen! 🔊"}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
