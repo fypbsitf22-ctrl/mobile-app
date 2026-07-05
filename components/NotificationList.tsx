@@ -10,7 +10,9 @@ import {
   View
 } from 'react-native';
 // Use the shared service for all database logic
+
 import { auth } from '../firebaseConfig';
+
 import { firebaseService } from '../services/firebaseService';
 
 type Role = 'parent' | 'teacher';
@@ -41,12 +43,14 @@ export default function NotificationList({ role }: { role: Role }) {
 
   useEffect(() => {
     if (!role) return;
+
     const userId = auth.currentUser?.uid;
     if (!userId) return;
 
     // This listener is DYNAMIC. It will update the list the second 
     // a new notification is created automatically in Firebase.
     const unsubscribe = firebaseService.subscribeToNotifications(role, userId, (data) => {
+
       setNotifications(data);
       setLoading(false);
     });
