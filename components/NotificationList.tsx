@@ -1,7 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { collection, onSnapshot, orderBy, query, Timestamp, where } from 'firebase/firestore';
-import { useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
@@ -11,7 +10,9 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import { db } from '../firebaseConfig';
+// Use the shared service for all database logic
+import { auth } from '../firebaseConfig';
+import { firebaseService } from '../services/firebaseService';
 
 type Role = 'parent' | 'teacher';
 
@@ -20,9 +21,8 @@ interface NotificationItem {
   title: string;
   description: string;
   category: string;
-  timestamp?: Timestamp;
   isRead?: boolean;
-  timeStr?: string;
+  timeStr?: string; // This is now automatically provided by the service
 }
 
 const CATEGORY_THEMES: Record<string, { icon: keyof typeof Ionicons.glyphMap; color: string; bg: string }> = {
@@ -42,28 +42,17 @@ export default function NotificationList({ role }: { role: Role }) {
 
   useEffect(() => {
     if (!role) return;
-    const q = query(collection(db, 'notifications'), where('role', '==', role), orderBy('timestamp', 'desc'));
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const data: NotificationItem[] = snapshot.docs.map((doc) => {
-        const d = doc.data();
-        const ts = d.timestamp as Timestamp;
-        return {
-          id: doc.id,
-          title: d.title,
-          description: d.description,
-          category: d.category || 'School Updates',
-          timestamp: ts,
-          isRead: d.isRead ?? false,
-          timeStr: ts ? ts.toDate().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Just now',
-        };
-      });
+    const userId = auth.currentUser?.uid;
+    if (!userId) return;
+
+    // This listener is DYNAMIC. It will update the list the second 
+    // a new notification is created automatically in Firebase.
+    const unsubscribe = firebaseService.subscribeToNotifications(role, userId, (data) => {
       setNotifications(data);
       setLoading(false);
-    }, (err) => {
-      console.error(err);
-      setLoading(false);
     });
-    return unsubscribe;
+
+    return () => unsubscribe();
   }, [role]);
 
   if (loading) {
@@ -92,7 +81,10 @@ export default function NotificationList({ role }: { role: Role }) {
         renderItem={({ item }) => {
           const theme = CATEGORY_THEMES[item.category] || CATEGORY_THEMES['School Updates'];
           return (
-            <TouchableOpacity style={[styles.card, !item.isRead && styles.unreadCard]}>
+            <TouchableOpacity 
+              activeOpacity={0.7}
+              style={[styles.card, !item.isRead && styles.unreadCard]}
+            >
               <View style={[styles.iconContainer, { backgroundColor: theme.bg }]}>
                 <Ionicons name={theme.icon} size={22} color={theme.color} />
               </View>
@@ -106,6 +98,7 @@ export default function NotificationList({ role }: { role: Role }) {
                 <Text style={styles.descText} numberOfLines={2}>{item.description}</Text>
               </View>
 
+              {/* The Orange Dot appears automatically for new (unread) messages */}
               {!item.isRead && <View style={styles.dot} />}
             </TouchableOpacity>
           );
@@ -125,7 +118,7 @@ export default function NotificationList({ role }: { role: Role }) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#8daece' }, // Soft blue-grey background
+  container: { flex: 1, backgroundColor: '#8daece' }, 
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   header: {
     flexDirection: 'row',
@@ -137,22 +130,20 @@ const styles = StyleSheet.create({
     borderBottomLeftRadius: 40,
     borderBottomRightRadius: 30,
     elevation: 4,
-    shadowColor: '#000', shadowOpacity: 0.1, shadowRadius: 10,
   },
   backBtn: { backgroundColor: '#F5F5F5', padding: 8, borderRadius: 12 },
   headerTitle: { fontSize: 22, fontWeight: '800', color: '#2C3E50' },
   list: { padding: 20, paddingBottom: 40 },
-  
   card: {
     flexDirection: 'row',
     backgroundColor: '#FFF',
     borderRadius: 20,
-    padding: 35,
+    padding: 20,
     marginBottom: 15,
     alignItems: 'center',
-    shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 8, elevation: 3,
+    elevation: 3,
   },
-  unreadCard: { borderLeftWidth: 5, borderLeftColor: '#FFB347' }, // Accent for unread
+  unreadCard: { borderLeftWidth: 5, borderLeftColor: '#FFB347' }, 
   iconContainer: { width: 50, height: 50, borderRadius: 15, justifyContent: 'center', alignItems: 'center', marginRight: 15 },
   cardContent: { flex: 1 },
   cardTop: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 },
@@ -161,7 +152,6 @@ const styles = StyleSheet.create({
   titleText: { fontSize: 16, fontWeight: '700', color: '#333' },
   descText: { fontSize: 13, color: '#777', marginTop: 2, lineHeight: 18 },
   dot: { width: 10, height: 10, borderRadius: 5, backgroundColor: '#FFB347', marginLeft: 10 },
-
   emptyContainer: { alignItems: 'center', marginTop: 100 },
   emptyIconCircle: { width: 120, height: 120, borderRadius: 60, backgroundColor: '#FFF', justifyContent: 'center', alignItems: 'center', marginBottom: 20, elevation: 2 },
   emptyTitle: { fontSize: 20, fontWeight: '700', color: '#444' },

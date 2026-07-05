@@ -7,12 +7,13 @@ import * as ImagePicker from 'expo-image-picker';
 import * as IntentLauncher from 'expo-intent-launcher';
 import * as MediaLibrary from 'expo-media-library';
 import { useRouter } from 'expo-router';
-import { addDoc, collection, deleteDoc, doc, getDoc, onSnapshot, orderBy, query, updateDoc, where } from 'firebase/firestore';
+import { addDoc, collection, deleteDoc, doc, getDoc, getDocs, onSnapshot, orderBy, query, updateDoc, where } from 'firebase/firestore';
 import React, { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, Animated, Dimensions, FlatList, Image, Modal, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { WebView } from 'react-native-webview';
 import { auth, db } from '../../firebaseConfig';
+import { firebaseService } from '../../services/firebaseService';
 import { supabase } from '../../supabaseConfig';
 import MainHeader from '../MainHeaderShared';
 
@@ -172,7 +173,24 @@ export default function ActivityModule({ role }: { role: 'parent' | 'teacher' })
 
   const saveActivityToFirebase = async (title: string, url: string) => {
     try {
-      await addDoc(collection(db, "activities"), { title, fileUrl: url, createdAt: new Date().toISOString(), teacherId: auth.currentUser?.uid, teacherName: auth.currentUser?.displayName || "Teacher" });
+      const teacherId = auth.currentUser?.uid;
+      await addDoc(collection(db, "activities"), {
+        title, fileUrl: url, createdAt: new Date().toISOString(),
+        teacherId, teacherName: auth.currentUser?.displayName || "Teacher"
+      });
+
+      // Notify all linked parents
+      const studentsSnap = await getDocs(query(collection(db, "users"), where("teacherId", "==", teacherId), where("role", "==", "parent")));
+      studentsSnap.forEach(async (docSnap) => {
+        await firebaseService.createNotification({
+          role: "parent",
+          recipientId: docSnap.id,
+          title: "New Activity Posted! 📚",
+          description: `Your teacher posted a new activity: ${title}`,
+          category: "Academic",
+        });
+      });
+
       Alert.alert("Activity Published", "Material is now live.");
     } catch (e) {
       Alert.alert("Error", "Save failed.");
@@ -205,6 +223,15 @@ export default function ActivityModule({ role }: { role: 'parent' | 'teacher' })
         await saveActivityToFirebase(asset.fileName || "New Activity", url);
       } else if (target === 'submission' && activityId && activityTeacherId) {
         await addDoc(collection(db, "submissions"), { activityId, activityTitle, teacherId: activityTeacherId, studentId: auth.currentUser?.uid, studentName: auth.currentUser?.displayName || "Student", fileUrl: url, grade: "", status: "Pending", submittedAt: new Date().toISOString() });
+
+        await firebaseService.createNotification({
+          role: "teacher",
+          recipientId: activityTeacherId,
+          title: "New Submission! 📥",
+          description: `${auth.currentUser?.displayName || "A student"} submitted work for ${activityTitle}`,
+          category: "Academic",
+        });
+
         triggerSuccessPopup('submit');
       }
     } catch (e) {
@@ -230,6 +257,15 @@ export default function ActivityModule({ role }: { role: 'parent' | 'teacher' })
     const url = await processUpload(asset.uri, asset.name);
     if (url) {
       await addDoc(collection(db, "submissions"), { activityId: selectedActivity.id, activityTitle: selectedActivity.title, teacherId: selectedActivity.teacherId, studentId: auth.currentUser?.uid, studentName: auth.currentUser?.displayName || "Student", fileUrl: url, grade: "", status: "Pending", submittedAt: new Date().toISOString() });
+
+      await firebaseService.createNotification({
+        role: "teacher",
+        recipientId: selectedActivity.teacherId,
+        title: "New Submission! 📥",
+        description: `${auth.currentUser?.displayName || "A student"} submitted work for ${selectedActivity.title}`,
+        category: "Academic",
+      });
+
       triggerSuccessPopup('submit');
     }
   };
@@ -349,7 +385,18 @@ export default function ActivityModule({ role }: { role: 'parent' | 'teacher' })
     const grade = gradeInput[submissionId];
     if (!grade) return Alert.alert("Wait", "Enter marks.");
     try {
+      const submission = submissions.find(s => s.id === submissionId);
       await updateDoc(doc(db, "submissions", submissionId), { grade, status: "Graded" });
+
+      if (submission) {
+        await firebaseService.createNotification({
+          role: "parent",
+          recipientId: submission.studentId,
+          title: "Work Graded! ⭐",
+          description: `You got marks: ${grade} for ${submission.activityTitle}`,
+          category: "Child Progress",
+        });
+      }
       Alert.alert("Success ✅", "Marks assigned.");
     } catch (e) {
       Alert.alert("Error", "Could not save.");
@@ -591,7 +638,7 @@ const styles = StyleSheet.create({
   toggleText: { fontWeight: 'bold', color: '#777' },
   toggleTextActive: { color: '#5A9BD5' },
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.85)', justifyContent: 'center', alignItems: 'center' },
-  rewardBox: { backgroundColor: '#FFF', padding: 30, borderRadius: 50, alignItems: 'center', elevation: 20, width: '90%', borderWidth: 10, borderColor: '#E1F5FE' },
+  rewardBox: { backgroundColor: '#FFF', padding: 30, borderRadius: 50, alignItems: 'center', elevation: 20, width: '90%', borderColor: '#E1F5FE', borderWidth: 10 },
   wellDoneText: { fontSize: 30, fontWeight: '900', color: '#4CAF50', textAlign: 'center', marginTop: 10, width: '100%' },
   rewardSubText: { fontSize: 18, color: '#555', fontWeight: '700', marginTop: 30, textAlign: 'center', lineHeight: 26 },
   iconCircleLarge: { width: 140, height: 140, borderRadius: 70, justifyContent: 'center', alignItems: 'center' },

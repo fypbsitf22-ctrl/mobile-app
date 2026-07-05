@@ -183,14 +183,28 @@ const handleSaveTeacherCode = async () => {
         });
     });
   };
+const unsubRef = useRef<(() => void) | null>(null);
 
-  const handleLogout = () => {
-    triggerCuteAlert("Logout? 👋", "Are you sure you want to exit?", "confirm", audioConfig.logoutConfirm, async () => {
-        setCuteModalVisible(false);
-        router.replace('/login');
-        setTimeout(async () => { await signOut(auth); }, 500);
-    });
-  };
+useEffect(() => {
+  const user = auth.currentUser;
+  if (!user) return;
+  const userRef = doc(db, 'users', user.uid);
+  const unsubscribe = onSnapshot(userRef, (docSnap) => {
+    // ...existing logic
+  }, (error) => { console.log('Listener detached.'); });
+
+  unsubRef.current = unsubscribe;
+  return () => unsubscribe();
+}, []);
+
+const handleLogout = () => {
+  triggerCuteAlert("Logout? 👋", "Are you sure you want to exit?", "confirm", audioConfig.logoutConfirm, async () => {
+    setCuteModalVisible(false);
+    if (unsubRef.current) unsubRef.current(); // 🔑 stop listener FIRST
+    await signOut(auth);                       // then sign out
+    router.replace('/login');                  // then navigate
+  });
+};
 
   if (loading) return <View style={[styles.container, { justifyContent: 'center' }]}><ActivityIndicator size="large" color="#FFC26D" /></View>;
 

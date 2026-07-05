@@ -36,7 +36,26 @@ export default function TeacherProfile() {
   const [modalType, setModalType] = useState<'success' | 'warning' | 'confirm'>('success');
   const [onConfirmAction, setOnConfirmAction] = useState<(() => void) | null>(null);
   const scaleAnim = useRef(new Animated.Value(0)).current;
+const unsubRef = useRef<(() => void) | null>(null);
 
+useEffect(() => {
+  const user = auth.currentUser;
+  if (!user) return;
+  const userRef = doc(db, "users", user.uid);
+  const unsubscribe = onSnapshot(userRef, (docSnap) => {
+    if (docSnap.exists() && auth.currentUser) {
+      const data = docSnap.data();
+      setName(data.name || '');
+      setProfileImage(data.profileImage || null);
+      setEmail(data.email || user.email || '');
+    }
+  }, (error) => {
+    if (error.code === 'permission-denied') console.log("Listener detached.");
+  });
+
+  unsubRef.current = unsubscribe;
+  return () => unsubscribe();
+}, []);
   const triggerCuteAlert = (title: string, msg: string, type: 'success' | 'warning' | 'confirm' = 'success', onConfirm?: () => void) => {
     setModalTitle(title);
     setModalMsg(msg);
@@ -109,36 +128,38 @@ export default function TeacherProfile() {
     }
   };
 
-  const handleUpdateEmail = async () => {
-    if (!email.trim() || !email.includes('@')) return triggerCuteAlert("Oops! 📧", "Valid email is required", "warning");
-    setLoading(true);
-    try {
-      const user = auth.currentUser;
-      if (user) {
-        await updateEmail(user, email);
-        await updateDoc(doc(db, "users", user.uid), { email: email });
-        setIsEditingEmail(false);
-        triggerCuteAlert("Success! ✅", "Email updated successfully!", "success");
-      }
-    } catch (e: any) {
-      triggerCuteAlert("Error ❌", e.message, "warning");
-    } finally {
-      setLoading(false);
+ const handleUpdateEmail = async () => {
+  if (!email.trim() || !email.includes('@')) return triggerCuteAlert("Oops! 📧", "Valid email is required", "warning");
+  setLoading(true);
+  try {
+    const user = auth.currentUser;
+    if (user) {
+      await updateEmail(user, email);
+      await updateDoc(doc(db, "users", user.uid), { email: email });
+      setIsEditingEmail(false);
+      triggerCuteAlert("Success! ✅", "Email updated successfully!", "success");
     }
-  };
+  } catch (e: any) {
+    triggerCuteAlert("Error ❌", e.message, "warning");
+  } finally {
+    setLoading(false);
+  }
+};
 
-  const handleLogout = () => {
-    triggerCuteAlert(
-      "Logout? 👋", 
-      "Are you sure you want to exit your classroom?", 
-      "confirm", 
-      async () => {
-        setModalVisible(false);
-        router.replace('/login'); 
-        setTimeout(async () => { await signOut(auth); }, 500);
-      }
-    );
-  };
+
+const handleLogout = () => {
+  triggerCuteAlert(
+    "Logout? 👋",
+    "Are you sure you want to exit your classroom?",
+    "confirm",
+    async () => {
+      setModalVisible(false);
+      if (unsubRef.current) unsubRef.current(); // stop listener FIRST
+      await signOut(auth);                        // then sign out
+      router.replace('/login');                    // then navigate
+    }
+  );
+};
 
   return (
     <SafeAreaView style={styles.container}>

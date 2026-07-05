@@ -24,11 +24,12 @@ export interface LessonProgress {
 
 export const firebaseService = {
   // --- Notifications ---
-  subscribeToNotifications: (role: string, callback: (data: any[]) => void) => {
+  subscribeToNotifications: (role: string, userId: string, callback: (data: any[]) => void) => {
     try {
       const q = query(
         collection(db, "notifications"),
         where("role", "==", role),
+        where("recipientId", "==", userId),   // 🔑 only notifications meant for THIS user
         orderBy("timestamp", "desc")
       );
       return onSnapshot(q, (snapshot) => {
@@ -42,6 +43,35 @@ export const firebaseService = {
     } catch (err) {
       console.error("Notification Error:", err);
       return () => { };
+    }
+  },
+
+  // --- Generic Notification Creator ---
+  createNotification: async ({
+    role,
+    recipientId,
+    title,
+    description,
+    category,
+  }: {
+    role: 'parent' | 'teacher';
+    recipientId: string;
+    title: string;
+    description: string;
+    category: string;
+  }) => {
+    try {
+      await addDoc(collection(db, "notifications"), {
+        role,
+        recipientId,
+        title,
+        description,
+        category,
+        isRead: false,
+        timestamp: serverTimestamp(),
+      });
+    } catch (e) {
+      console.error("Notification creation error:", e);
     }
   },
 
@@ -82,14 +112,17 @@ export const firebaseService = {
   },
 
   // --- Feedback ---
-  submitFeedback: async (submissionId: string, feedback: string, score: string) => {
+  submitFeedback: async (submissionId: string, feedback: string, score: string, studentId: string) => {
     try {
-      const submissionRef = doc(db, "submissions", submissionId);
-      await updateDoc(submissionRef, {
-        feedback,
-        score,
-        status: "Reviewed",
-        reviewedAt: serverTimestamp()
+      await updateDoc(doc(db, "submissions", submissionId), {
+        feedback, score, status: "Reviewed", reviewedAt: serverTimestamp()
+      });
+      await firebaseService.createNotification({
+        role: "parent",
+        recipientId: studentId,
+        title: "Teacher Feedback 💬",
+        description: feedback,
+        category: "Teacher Updates",
       });
     } catch (e) {
       console.error("Error submitting feedback: ", e);
