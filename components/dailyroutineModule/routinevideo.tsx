@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Audio } from 'expo-av';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { collection, doc, getDoc, onSnapshot, orderBy, query, where } from 'firebase/firestore';
+import { arrayUnion, collection, doc, getDoc, increment, onSnapshot, orderBy, query, setDoc, where } from 'firebase/firestore';
 import LottieView from 'lottie-react-native';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Animated, Dimensions, Modal, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
@@ -173,6 +173,14 @@ export default function RoutineVideoModule({ role }: { role: 'parent' | 'teacher
 
     if (role === 'parent' && currentItem) {
       isFinishedFlag.current = true; // Mark as finished
+      await setDoc(
+  doc(db, "users", auth.currentUser!.uid),
+  {
+    stars: increment(1),
+    completedLessons: arrayUnion(currentItem.id),
+  },
+  { merge: true }
+);
       await firebaseService.saveLessonProgress(
         auth.currentUser!.uid,
         {

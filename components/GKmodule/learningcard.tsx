@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Audio } from 'expo-av';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { collection, doc, getDoc, onSnapshot, orderBy, query, where } from 'firebase/firestore';
+import { arrayUnion, collection, doc, getDoc, increment, onSnapshot, orderBy, query, setDoc, where } from 'firebase/firestore';
 import LottieView from 'lottie-react-native';
 import React, { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Animated, Dimensions, Image, Modal, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
@@ -151,6 +151,14 @@ export default function GKLearningCard({ role }: { role: 'parent' | 'teacher' })
       const user = auth.currentUser;
       if (user) {
         isFinished.current = true; // Mark as finished to prevent incomplete save
+        await setDoc(
+  doc(db, "users", user.uid),
+  {
+    stars: increment(1),
+    completedLessons: arrayUnion(currentItem.id),
+  },
+  { merge: true }
+);
         await firebaseService.saveLessonProgress(
           user.uid,
           {

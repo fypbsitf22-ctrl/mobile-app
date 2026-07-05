@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Audio } from 'expo-av';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { collection, doc, getDoc, getDocs, onSnapshot, orderBy, query, where } from 'firebase/firestore';
+import { arrayUnion, collection, doc, getDoc, getDocs, increment, onSnapshot, orderBy, query, setDoc, where } from 'firebase/firestore';
 import LottieView from 'lottie-react-native';
 import React, { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Animated, Dimensions, Modal, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
@@ -10,7 +10,6 @@ import { auth, db } from '../../firebaseConfig';
 import { firebaseService } from '../../services/firebaseService'; // Added Service Import
 import MainHeaderShared from '../MainHeaderShared';
 const { width } = Dimensions.get('window');
-
 export default function IslamicQA({ role }: { role: 'parent' | 'teacher' }) {
   const router = useRouter();
   const { itemId, catId } = useLocalSearchParams(); 
@@ -132,19 +131,26 @@ export default function IslamicQA({ role }: { role: 'parent' | 'teacher' }) {
       return;
     }
 
-    if (role === 'parent' && auth.currentUser) {
-        isFinished.current = true; // MARK AS FINISHED
-        await firebaseService.saveLessonProgress(
-          auth.currentUser.uid,
-          {
-            subject: "Islamic Learning",
-            lessonName: currentQuestion.name,
-            timeSpent: formatTime(elapsedTime),
-            starsEarned: 1,
-          },
-          'parent'
-        );
-    }
+   if (role === 'parent' && auth.currentUser) {
+    isFinished.current = true;
+
+    // ADD THIS — updates completedLessons so the star badge shows up
+    await setDoc(doc(db, "users", auth.currentUser.uid), {
+      stars: increment(1),
+      completedLessons: arrayUnion(currentQuestion.id)
+    }, { merge: true });
+
+    await firebaseService.saveLessonProgress(
+      auth.currentUser.uid,
+      {
+        subject: "Islamic Learning",
+        lessonName: currentQuestion.name,
+        timeSpent: formatTime(elapsedTime),
+        starsEarned: 1,
+      },
+      'parent'
+    );
+}
 
     setShowRewardModal(true);
     playSound(appConfig?.success);

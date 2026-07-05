@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Audio } from 'expo-av';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { doc, getDoc } from 'firebase/firestore';
+import { arrayUnion, doc, getDoc, increment, setDoc } from 'firebase/firestore';
 import LottieView from 'lottie-react-native';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Animated, Dimensions, Modal, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
@@ -10,7 +10,6 @@ import YoutubePlayer from 'react-native-youtube-iframe';
 import { auth, db } from '../../firebaseConfig';
 import { firebaseService } from '../../services/firebaseService'; // Added Service Import
 import MainHeaderShared from '../MainHeaderShared';
-
 const { width } = Dimensions.get('window');
 
 export default function IslamicVideo({ role }: { role: 'parent' | 'teacher' }) {
@@ -135,19 +134,26 @@ export default function IslamicVideo({ role }: { role: 'parent' | 'teacher' }) {
       return;
     }
 
-    if (role === 'parent' && auth.currentUser) {
-      isFinishedFlag.current = true; // Mark as finished
-      await firebaseService.saveLessonProgress(
-        auth.currentUser.uid,
-        {
-          subject: "Islamic Learning",
-          lessonName: title || data?.name || "Islamic Video",
-          timeSpent: formatTime(elapsedTime),
-          starsEarned: 1,
-        },
-        'parent'
-      );
-    }
+   if (role === 'parent' && auth.currentUser) {
+  isFinishedFlag.current = true; // Mark as finished
+
+  // ADD THIS — updates completedLessons so the star badge shows up
+  await setDoc(doc(db, "users", auth.currentUser.uid), {
+    stars: increment(1),
+    completedLessons: arrayUnion(itemId as string)
+  }, { merge: true });
+
+  await firebaseService.saveLessonProgress(
+    auth.currentUser.uid,
+    {
+      subject: "Islamic Learning",
+      lessonName: title || data?.name || "Islamic Video",
+      timeSpent: formatTime(elapsedTime),
+      starsEarned: 1,
+    },
+    'parent'
+  );
+}
 
     setShowRewardModal(true);
     playSound(appConfig?.success);

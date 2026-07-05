@@ -1,28 +1,47 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Audio } from 'expo-av';
 import { useRouter } from 'expo-router';
-import { collection, getDocs, onSnapshot, orderBy, query, where } from 'firebase/firestore';
+import { collection, doc, getDocs, onSnapshot, orderBy, query, where } from 'firebase/firestore';
 import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, Dimensions, FlatList, Image, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { db } from '../../firebaseConfig';
+import { auth, db } from '../../firebaseConfig';
 import MainHeader from '../MainHeaderShared';
-
 const { width } = Dimensions.get('window');
 
 export default function IslamicMain({ role }: { role: 'parent' | 'teacher' }) {
   const router = useRouter();
   const [categories, setCategories] = useState<any[]>([]);
+  const [allItems, setAllItems] = useState<any[]>([]);              // ADDED
+  const [completedLessons, setCompletedLessons] = useState<string[]>([]); // ADDED
   const [loading, setLoading] = useState(true);
-
   const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
   useEffect(() => {
     const q = query(collection(db, "islamic_categories"), orderBy("uploaded", "desc"));
-    return onSnapshot(q, (snapshot) => {
+    const unsubCat = onSnapshot(q, (snapshot) => {
       setCategories(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
       setLoading(false);
     });
+
+    // ADDED: fetch all islamic_items so we can find the item tied to each direct-video category
+    const qItems = query(collection(db, "islamic_items"));
+    const unsubItems = onSnapshot(qItems, (snap) => {
+      setAllItems(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+    });
+
+    // ADDED: fetch user's completedLessons
+    const user = auth.currentUser;
+    let unsubUser = () => {};
+    if (user && role === 'parent') {
+      unsubUser = onSnapshot(doc(db, "users", user.uid), (docSnap) => {
+        if (docSnap.exists()) {
+          setCompletedLessons(docSnap.data().completedLessons || []);
+        }
+      });
+    }
+
+    return () => { unsubCat(); unsubItems(); unsubUser(); };
   }, []);
 
   const handlePress = async (item: any) => {
@@ -87,6 +106,26 @@ export default function IslamicMain({ role }: { role: 'parent' | 'teacher' }) {
     }
   };
 
+  // ADDED: renderCard function (was inline before) to include the star badge check
+  const renderCard = ({ item }: any) => {
+    const associatedItem = allItems.find(i => i.categoryID === item.id);
+    const isFinished = associatedItem && completedLessons.includes(associatedItem.id);
+
+    return (
+      <TouchableOpacity style={styles.card} onPress={() => handlePress(item)}>
+        <View style={styles.whiteBox}>
+          {isFinished && (
+            <View style={styles.starBadge}>
+              <Ionicons name="star" size={20} color="#FFD700" />
+            </View>
+          )}
+          <Image source={{ uri: item.image }} style={styles.cardImage} resizeMode="contain" />
+          <Text style={styles.cardText} numberOfLines={1}>{item.name}</Text>
+        </View>
+      </TouchableOpacity>
+    );
+  };
+
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <MainHeader role={role} /> 
@@ -101,14 +140,7 @@ export default function IslamicMain({ role }: { role: 'parent' | 'teacher' }) {
         <FlatList 
           data={categories} 
           numColumns={2} 
-          renderItem={({item}) => (
-            <TouchableOpacity style={styles.card} onPress={() => handlePress(item)}>
-              <View style={styles.whiteBox}>
-                <Image source={{ uri: item.image }} style={styles.cardImage} resizeMode="contain" />
-                <Text style={styles.cardText} numberOfLines={1}>{item.name}</Text>
-              </View>
-            </TouchableOpacity>
-          )} 
+          renderItem={renderCard}
           keyExtractor={item => item.id} 
           columnWrapperStyle={styles.row}
           contentContainerStyle={{ paddingBottom: 30 }}
@@ -127,7 +159,21 @@ const styles = StyleSheet.create({
   headerText: { fontSize: 24, fontWeight: 'bold', color: '#5A9BD5' }, 
   row: { justifyContent: 'space-between', paddingHorizontal: 20 },
   card: { width: width * 0.43, marginTop: 20 },
-  whiteBox: { backgroundColor: '#FFF', borderRadius: 30, padding: 15, alignItems: 'center', elevation: 5 },
+  whiteBox: { backgroundColor: '#FFF', borderRadius: 30, padding: 15, alignItems: 'center', elevation: 5, position: 'relative' }, // added position: 'relative' — required for absolute-positioned starBadge to anchor correctly
   cardImage: { width: '100%', height: 110, marginBottom: 10 },
-  cardText: { fontSize: 18, fontWeight: 'bold', color: '#444', textAlign: 'center' }
+  cardText: { fontSize: 18, fontWeight: 'bold', color: '#444', textAlign: 'center' },
+
+  // ADDED
+  starBadge: { 
+    position: 'absolute', 
+    top: -10, 
+    right: -10, 
+    backgroundColor: '#FFF', 
+    padding: 5, 
+    borderRadius: 20, 
+    elevation: 8, 
+    borderWidth: 2, 
+    borderColor: '#FFD700',
+    zIndex: 10
+  }
 });
