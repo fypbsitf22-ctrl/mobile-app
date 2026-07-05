@@ -18,6 +18,7 @@ const COLORS = {
   mintBlob: '#E2F7ED',  
   blueBlob: '#E0F2FE',
   button: '#D8B4FE',  
+  purpleArrow: '#8B5CF6', 
   white: '#FFFFFF',
 };
 
@@ -57,6 +58,42 @@ const SCENARIOS = [
       { id: 'swimsuit', emoji: '🩱' },
       { id: 'jacket', emoji: '🧥' },
     ]
+  },
+  {
+    id: 4,
+    label: 'Autumn Day',
+    emoji: '🍂',
+    color: '#FFEDD5',
+    correctId: 'scarf',
+    options: [
+      { id: 'scarf', emoji: '🧣' },
+      { id: 'flipflops', emoji: '🩴' },
+      { id: 'sunglasses', emoji: '🕶️' },
+    ]
+  },
+  {
+    id: 5,
+    label: 'Beach Day',
+    emoji: '🏖️',
+    color: '#FEF3C7',
+    correctId: 'swimsuit',
+    options: [
+      { id: 'parka', emoji: '🧥' },
+      { id: 'swimsuit', emoji: '🩱' },
+      { id: 'tie', emoji: '👔' },
+    ]
+  },
+  {
+    id: 6,
+    label: 'Windy Day',
+    emoji: '🌬️',
+    color: '#F0FDFA',
+    correctId: 'kite',
+    options: [
+      { id: 'kite', emoji: '🪁' },
+      { id: 'heels', emoji: '👠' },
+      { id: 'umbrella', emoji: '☂️' },
+    ]
   }
 ];
 
@@ -77,14 +114,19 @@ export default function DressSeasonGame() {
     ).start();
   }, []);
 
+  // FIXED: Explicit function to force navigation to Menu
+  const handleGoToMenu = () => {
+    setScreen('menu');
+    setCurrentIdx(0); // Optional: reset progress when leaving
+  };
+
   const handleChoice = (id: string) => {
     if (id === active.correctId) {
       setScore(s => s + 10);
       if (currentIdx < SCENARIOS.length - 1) {
         setCurrentIdx(currentIdx + 1);
       } else {
-        setCurrentIdx(0);
-        setScreen('menu');
+        handleGoToMenu();
       }
     }
   };
@@ -105,6 +147,17 @@ export default function DressSeasonGame() {
       <View style={styles.fullScreen}>
         <StatusBar barStyle="dark-content" translucent backgroundColor="transparent" />
         <EnhancedBackground />
+        
+        {/* Menu screen arrow (Purely decorative or for external navigation) */}
+        <SafeAreaView style={styles.menuHeaderContainer}>
+            <TouchableOpacity 
+              hitSlop={{ top: 20, bottom: 20, left: 20, right: 20 }}
+              style={styles.transparentBackBtn} 
+              onPress={() => console.log('Exit App')}>
+                <Text style={styles.purpleArrowIcon}>←</Text>
+            </TouchableOpacity>
+        </SafeAreaView>
+
         <View style={styles.menuTop}>
           <Text style={{ fontSize: 150 }}>🌦️</Text>
           <View style={styles.heroBadge}>
@@ -128,8 +181,12 @@ export default function DressSeasonGame() {
       <EnhancedBackground />
       <SafeAreaView style={styles.safeArea}>
         <View style={styles.gameHeader}>
-          <TouchableOpacity onPress={() => setScreen('menu')} style={styles.navBtn}>
-            <Text style={{ fontSize: 22 }}>⬅</Text>
+          {/* FIXED: Added hitSlop and ensured high zIndex via transparentBackBtn style */}
+          <TouchableOpacity 
+            onPress={handleGoToMenu} 
+            hitSlop={{ top: 30, bottom: 30, left: 30, right: 30 }}
+            style={styles.transparentBackBtn}>
+            <Text style={styles.purpleArrowIcon}>←</Text>
           </TouchableOpacity>
           <View style={styles.statsRow}>
             <Text style={styles.statText}>Points: {score}</Text>
@@ -164,6 +221,12 @@ const styles = StyleSheet.create({
   safeArea: { flex: 1, zIndex: 5 },
   blobStatic: { position: 'absolute', borderRadius: 1000 },
   blobPulse: { position: 'absolute', width: width * 0.7, height: width * 0.7, borderRadius: width * 0.35, opacity: 0.5 },
+  
+  // FIXED: Added zIndex to the buttons to ensure they aren't covered by invisible views
+  menuHeaderContainer: { position: 'absolute', top: 20, left: 15, zIndex: 99 },
+  transparentBackBtn: { padding: 10, backgroundColor: 'transparent', zIndex: 100 },
+  purpleArrowIcon: { fontSize: 40, color: '#8B5CF6', fontWeight: 'bold' },
+
   menuTop: { flex: 3, justifyContent: 'center', alignItems: 'center', paddingBottom: 50 },
   menuBottom: { flex: 2, alignItems: 'center', justifyContent: 'center', paddingBottom: 40 },
   heroBadge: { backgroundColor: '#DCFCE7', paddingHorizontal: 30, paddingVertical: 10, borderRadius: 25, marginTop: 30 },
@@ -173,8 +236,8 @@ const styles = StyleSheet.create({
   mainBtnShadow: { position: 'absolute', top: 8, width: '100%', height: '100%', backgroundColor: '#BE94F5', borderRadius: 40 },
   mainBtnTop: { width: '100%', height: '100%', backgroundColor: '#E9D5FF', borderRadius: 40, justifyContent: 'center', alignItems: 'center', borderWidth: 3, borderColor: '#FFFFFF' },
   mainBtnText: { color: '#FFFFFF', fontSize: 28, fontWeight: '900' },
-  gameHeader: { width: '100%', paddingHorizontal: 25, paddingVertical: 40, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  navBtn: { width: 50, height: 50, backgroundColor: '#FFFFFF', borderRadius: 25, justifyContent: 'center', alignItems: 'center', elevation: 4 },
+  
+  gameHeader: { width: '100%', paddingHorizontal: 15, paddingVertical: 20, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', zIndex: 100 },
   statsRow: { backgroundColor: '#FFFFFF', paddingHorizontal: 20, paddingVertical: 8, borderRadius: 20, elevation: 2 },
   statText: { fontSize: 18, fontWeight: '800', color: '#5B4D7B' },
   gameBody: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingBottom: 100 },

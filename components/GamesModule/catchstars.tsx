@@ -1,3 +1,4 @@
+import { useRouter } from 'expo-router'; // 1. Import Router
 import React, { useEffect, useRef, useState } from 'react';
 import {
   Animated,
@@ -29,6 +30,7 @@ const STAR_SIZE = 40;
 const GAME_TIME = 20;
 
 export default function CatchStarsGame() {
+  const router = useRouter(); // 2. Initialize Router
   const [screen, setScreen] = useState('menu');
   const [score, setScore] = useState(0);
   const [timeLeft, setTimeLeft] = useState(GAME_TIME);
@@ -107,7 +109,7 @@ export default function CatchStarsGame() {
       if (currentY > height - 160 && currentY < height - 80) {
         if (startX + STAR_SIZE > currentBasketX && startX < currentBasketX + BASKET_WIDTH) {
           hitDetected = true;
-          setScore(s => s + 1);
+          setScore(s => s + 10); // Changed to +10 for better scoring feel
           setStars(prev => prev.filter(s => s.id !== id));
         }
       }
@@ -134,6 +136,12 @@ export default function CatchStarsGame() {
     return (
       <View style={styles.container}>
         <Background />
+        
+        {/* 3. Back Button on Menu Screen */}
+        <TouchableOpacity style={styles.menuBackBtn} onPress={() => router.back()}>
+           <Text style={styles.purpleArrow}>←</Text>
+        </TouchableOpacity>
+
         <Animated.View style={{ transform: [{ translateY: floatAnim.interpolate({inputRange:[0,1], outputRange:[0, -30]}) }] }}>
             <Text style={styles.menuIcon}>⭐</Text>
         </Animated.View>
@@ -163,13 +171,20 @@ export default function CatchStarsGame() {
       <StatusBar barStyle="dark-content" />
       <Background />
       <View style={styles.header}>
-        <View style={styles.statBox}>
-            <Text style={styles.statLabel}>STARS</Text>
-            <Text style={styles.statValue}>{score}</Text>
-        </View>
-        <View style={styles.statBox}>
-            <Text style={styles.statLabel}>TIME</Text>
-            <Text style={[styles.statValue, {color: timeLeft < 6 ? '#FF6B6B' : COLORS.text}]}>{timeLeft}s</Text>
+        {/* 4. Back Button in Game Header */}
+        <TouchableOpacity onPress={() => router.back()}>
+          <Text style={styles.purpleArrow}>←</Text>
+        </TouchableOpacity>
+
+        <View style={{flexDirection: 'row'}}>
+          <View style={[styles.statBox, {marginRight: 20}]}>
+              <Text style={styles.statLabel}>STARS</Text>
+              <Text style={styles.statValue}>{score}</Text>
+          </View>
+          <View style={styles.statBox}>
+              <Text style={styles.statLabel}>TIME</Text>
+              <Text style={[styles.statValue, {color: timeLeft < 6 ? '#FF6B6B' : COLORS.text}]}>{timeLeft}s</Text>
+          </View>
         </View>
       </View>
 
@@ -197,7 +212,24 @@ const styles = StyleSheet.create({
   mainTitle: { fontSize: 44, fontWeight: '900', color: COLORS.text, textAlign: 'center', marginBottom: 50 },
   startBtn: { backgroundColor: '#D8B4FE', paddingHorizontal: 40, paddingVertical: 18, borderRadius: 30, elevation: 5 },
   startBtnText: { color: 'white', fontSize: 22, fontWeight: '900' },
-  header: { flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 30, paddingTop: 40 },
+  header: { 
+    flexDirection: 'row', 
+    justifyContent: 'space-between', 
+    paddingHorizontal: 20, 
+    paddingTop: 40,
+    alignItems: 'center'
+  },
+  purpleArrow: {
+    fontSize: 45,
+    color: '#D8B4FE',
+    fontWeight: 'bold',
+  },
+  menuBackBtn: {
+    position: 'absolute',
+    top: 50,
+    left: 20,
+    zIndex: 10
+  },
   statBox: { alignItems: 'center' },
   statLabel: { fontSize: 14, fontWeight: '800', color: '#A095B1' },
   statValue: { fontSize: 28, fontWeight: '900', color: COLORS.text },

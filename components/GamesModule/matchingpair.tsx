@@ -1,3 +1,4 @@
+import { useRouter } from 'expo-router'; // 1. Import Router
 import React, { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
@@ -30,6 +31,7 @@ const COLORS = {
 const PAIR_ITEMS = ['⭐️', '🍀', '💎', '🍭', '🎈', '🎁', '🎨', '🚀'];
 
 export default function MatchPairsGame() {
+  const router = useRouter(); // 2. Initialize Router
   const [screen, setScreen] = useState('loading');
   const [cards, setCards] = useState<any[]>([]);
   const [flipped, setFlipped] = useState<number[]>([]);
@@ -41,7 +43,6 @@ export default function MatchPairsGame() {
   const floatAnim = useRef(new Animated.Value(0)).current;
   const pulseAnim = useRef(new Animated.Value(0)).current;
   const popupScale = useRef(new Animated.Value(0)).current;
-  const lionBounce = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     if (screen === 'loading') {
@@ -140,6 +141,12 @@ export default function MatchPairsGame() {
     return (
       <View style={styles.mainContainer}>
         <Background />
+
+        {/* 3. Back Arrow on Menu */}
+        <TouchableOpacity style={styles.menuBackBtn} onPress={() => router.back()}>
+            <Text style={styles.purpleArrow}>←</Text>
+        </TouchableOpacity>
+
         <View style={styles.topSection}>
           <Animated.View style={{ transform: [{ translateY: floatAnim.interpolate({ inputRange: [0, 1], outputRange: [0, -40] }) }] }}>
             <View style={styles.heroCard}>
@@ -176,7 +183,11 @@ export default function MatchPairsGame() {
     <SafeAreaView style={styles.gameContainer}>
       <Background />
       <View style={styles.gameHeader}>
-        <TouchableOpacity onPress={() => setScreen('menu')} style={styles.navBtn}><Text style={{ fontSize: 22 }}>⬅</Text></TouchableOpacity>
+        {/* 4. Purple Arrow Back in Game Header (No background) */}
+        <TouchableOpacity onPress={() => router.back()}>
+            <Text style={styles.purpleArrow}>←</Text>
+        </TouchableOpacity>
+
         <View style={styles.stats}><Text style={styles.statLabel}>Pts: {score}</Text><Text style={styles.statLabel}>Time: {timeLeft}s</Text></View>
       </View>
       <View style={styles.gridContainer}>
@@ -201,6 +212,20 @@ const styles = StyleSheet.create({
   center: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: COLORS.bg },
   mainContainer: { flex: 1, backgroundColor: COLORS.bg, alignItems: 'center', justifyContent: 'space-between' },
   gameContainer: { flex: 1, backgroundColor: COLORS.bg },
+  
+  // Arrow Styling
+  purpleArrow: {
+    fontSize: 45,
+    color: '#D8B4FE',
+    fontWeight: 'bold',
+  },
+  menuBackBtn: {
+    position: 'absolute',
+    top: 50,
+    left: 20,
+    zIndex: 10
+  },
+
   loadingText: { marginTop: 20, fontSize: 24, fontWeight: '900', color: COLORS.text },
   blob: { position: 'absolute', width: width * 1.2, height: width * 1.2, borderRadius: width * 0.6 },
   pulseBlob: { position: 'absolute', width: width * 0.6, height: width * 0.6, borderRadius: width * 0.3, opacity: 0.4 },
@@ -216,8 +241,16 @@ const styles = StyleSheet.create({
   btnShadow: { position: 'absolute', top: 10, width: '100%', height: '100%', backgroundColor: '#BE94F5', borderRadius: 40 },
   btnTop: { width: '100%', height: '100%', backgroundColor: '#E9D5FF', borderRadius: 40, justifyContent: 'center', alignItems: 'center', borderWidth: 3, borderColor: COLORS.white },
   btnText: { color: COLORS.white, fontSize: 26, fontWeight: '900' },
-  gameHeader: { width: '100%', padding: 40, flexDirection: 'row', justifyContent: 'space-between' },
-  navBtn: { width: 45, height: 45, backgroundColor: COLORS.lavender, borderRadius: 22, justifyContent: 'center', alignItems: 'center' },
+  
+  gameHeader: { 
+    width: '100%', 
+    paddingHorizontal: 20, 
+    paddingTop: 30, 
+    flexDirection: 'row', 
+    justifyContent: 'space-between',
+    alignItems: 'center'
+  },
+
   stats: { alignItems: 'flex-end' },
   statLabel: { fontSize: 18, fontWeight: '800', color: COLORS.text },
   gridContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 15 },

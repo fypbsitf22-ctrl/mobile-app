@@ -1,3 +1,4 @@
+import { useRouter } from 'expo-router'; // 1. Import router
 import React, { useEffect, useRef, useState } from 'react';
 import {
   Animated,
@@ -25,6 +26,7 @@ const COLORS = {
 const PALETTE = ['#FF6B6B', '#4D96FF', '#6BCB77', '#FFD93D', '#9333EA', '#FF9F43'];
 
 export default function ColoringGame() {
+  const router = useRouter(); // 2. Initialize router
   const [screen, setScreen] = useState('menu');
   const [activeColor, setActiveColor] = useState(PALETTE[0]);
   const [timeLeft, setTimeLeft] = useState(20);
@@ -88,6 +90,11 @@ export default function ColoringGame() {
     return (
       <View style={styles.container}>
         <EnhancedBackground />
+        {/* Back arrow on Menu screen */}
+        <TouchableOpacity style={styles.menuBackBtn} onPress={() => router.back()}>
+            <Text style={styles.purpleArrow}>←</Text>
+        </TouchableOpacity>
+
         <Animated.Text style={[styles.mainTitle, { transform: [{ translateY: floatAnim.interpolate({inputRange:[0,1], outputRange:[0, -20]}) }] }]}>
           COLORING{"\n"}TIME! 🎨
         </Animated.Text>
@@ -116,9 +123,17 @@ export default function ColoringGame() {
       <StatusBar barStyle="dark-content" />
       <EnhancedBackground />
       <View style={styles.header}>
-        <Text style={styles.headerText}>Stars: {score} ⭐</Text>
-        <View style={styles.timerBadge}><Text style={styles.timerText}>{timeLeft}s</Text></View>
-        <TouchableOpacity onPress={() => setScreen('menu')}><Text style={{fontSize: 20, color: '#5B4D7B'}}>Exit</Text></TouchableOpacity>
+        {/* Replacement of "Exit" with Purple Back Arrow */}
+        <TouchableOpacity onPress={() => router.back()}>
+          <Text style={styles.purpleArrow}>←</Text>
+        </TouchableOpacity>
+        
+        <View style={{flexDirection: 'row', alignItems: 'center'}}>
+           <Text style={styles.headerText}>{score} ⭐</Text>
+           <View style={[styles.timerBadge, {marginLeft: 15}]}>
+              <Text style={styles.timerText}>{timeLeft}s</Text>
+           </View>
+        </View>
       </View>
 
       <View style={styles.canvas}>
@@ -155,7 +170,21 @@ const styles = StyleSheet.create({
   mainTitle: { fontSize: 48, fontWeight: '900', color: COLORS.text, textAlign: 'center', marginBottom: 50 },
   startBtn: { backgroundColor: '#D8B4FE', paddingHorizontal: 40, paddingVertical: 18, borderRadius: 30, elevation: 5 },
   startBtnText: { color: 'white', fontSize: 22, fontWeight: '900' },
-  header: { flexDirection: 'row', justifyContent: 'space-between', padding: 40, alignItems: 'center' },
+  header: { flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 25, paddingTop: 30, alignItems: 'center' },
+  
+  // Back Arrow Styling
+  purpleArrow: {
+    fontSize: 45,
+    color: '#D8B4FE',
+    fontWeight: 'bold',
+  },
+  menuBackBtn: {
+    position: 'absolute',
+    top: 50,
+    left: 20,
+    zIndex: 10
+  },
+
   headerText: { fontSize: 20, fontWeight: '800', color: COLORS.text },
   timerBadge: { backgroundColor: '#FFD93D', paddingHorizontal: 15, paddingVertical: 5, borderRadius: 15 },
   timerText: { fontSize: 18, fontWeight: '900' },
