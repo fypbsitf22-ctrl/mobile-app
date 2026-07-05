@@ -2,13 +2,12 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
-  ActivityIndicator,
   FlatList,
   SafeAreaView,
   StyleSheet,
   Text,
   TouchableOpacity,
-  View,
+  View
 } from 'react-native';
 // Use the shared service for all database logic
 import { auth } from '../firebaseConfig';
@@ -38,7 +37,7 @@ const CATEGORY_THEMES: Record<string, { icon: keyof typeof Ionicons.glyphMap; co
 export default function NotificationList({ role }: { role: Role }) {
   const router = useRouter();
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     if (!role) return;
@@ -55,13 +54,7 @@ export default function NotificationList({ role }: { role: Role }) {
     return () => unsubscribe();
   }, [role]);
 
-  if (loading) {
-    return (
-      <View style={styles.center}>
-        <ActivityIndicator size="large" color="#FFB347" />
-      </View>
-    );
-  }
+
 
   return (
     <SafeAreaView style={styles.container}>

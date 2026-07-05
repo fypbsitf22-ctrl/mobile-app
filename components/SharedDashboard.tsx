@@ -1,11 +1,12 @@
 import { useRouter } from 'expo-router';
-import { arrayUnion, doc, getDoc, setDoc } from 'firebase/firestore';
+import { arrayRemove, arrayUnion, doc, getDoc, setDoc } from 'firebase/firestore';
 import {
   ArrowLeft,
   ChevronDown,
   ChevronUp,
   Clock,
   Send,
+  Trash2,
   User
 } from 'lucide-react-native';
 import React, { useEffect, useState } from 'react';
@@ -30,7 +31,10 @@ type UserRole = 'parent' | 'teacher';
 export default function SharedDashboard({ userRole, userId }: { userRole: UserRole, userId: string }) {
   const [data, setData] = useState<any[]>([]);
   const [profileName, setProfileName] = useState<string>("User"); 
-  const [activeStudent, setActiveStudent] = useState<any | null>(null);
+  const [activeStudentId, setActiveStudentId] = useState<string | null>(null);
+
+// Replace this everywhere activeStudent was used to derive the live object:
+const activeStudent = activeStudentId ? data.find(d => d.id === activeStudentId) : null;
   const [isLoading, setIsLoading] = useState(true);
   
   const [historyExpanded, setHistoryExpanded] = useState(false);
@@ -82,48 +86,68 @@ export default function SharedDashboard({ userRole, userId }: { userRole: UserRo
     return { days, counts, max };
   };
 
-  const handleSendMessage = async () => {
-    const student = activeStudent || (data.length > 0 ? data[0] : null);
-    if (!student || !student.id) return;
-    if (!feedbackText.trim()) return;
+ const handleSendMessage = async () => {
+  const student = activeStudent || (data.length > 0 ? data[0] : null);
+  if (!student || !student.id) return;
+  if (!feedbackText.trim()) return;
 
-    try {
-      const studentRef = doc(db, "students", student.id);
-      await setDoc(studentRef, {
-        communications: arrayUnion({
-          sender: profileName,
-          date: new Date().toLocaleDateString() + " " + new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}),
-          content: feedbackText,
-          type: 'feedback'
-        })
-      }, { merge: true });
+  try {
+    const studentRef = doc(db, "students", student.id);
+    await setDoc(studentRef, {
+      communications: arrayUnion({
+        sender: profileName,
+        date: new Date().toLocaleDateString() + " " + new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}),
+        content: feedbackText,
+        type: 'feedback'
+      })
+    }, { merge: true });
 
-      // Notify the other side
-      if (userRole === 'teacher') {
-        // Teacher sent a message → notify the parent (student.id IS the parent's uid)
-        await firebaseService.createNotification({
-          role: "parent",
-          recipientId: student.id,
-          title: "Message from Teacher 💬",
-          description: feedbackText,
-          category: "Teacher Updates",
-        });
-      } else {
-        // Parent sent a message → notify the linked teacher
-        const teacherId = student.teacherId;
-        if (teacherId) {
-          await firebaseService.createNotification({
-            role: "teacher",
-            recipientId: teacherId,
-            title: "Message from Parent 💬",
-            description: feedbackText,
-            category: "Communication",
-          });
+    if (userRole === 'teacher') {
+      await firebaseService.createNotification({
+        role: "parent",
+        recipientId: student.id,
+        title: "Message from Teacher 💬",
+        description: feedbackText,
+        category: "Teacher Updates",
+      });
+    } else {
+      // Try to get teacherId from student doc, fallback to users doc
+      let teacherId = student.teacherId;
+      if (!teacherId) {
+        const userSnap = await getDoc(doc(db, "users", student.id));
+        if (userSnap.exists()) {
+          teacherId = userSnap.data().teacherId;
         }
       }
 
-      setFeedbackText(""); 
-    } catch (err) { console.error(err); }
+      if (teacherId) {
+        await firebaseService.createNotification({
+          role: "teacher",
+          recipientId: teacherId,
+          title: "Message from Parent 💬",
+          description: feedbackText,
+          category: "Communication",
+        });
+      } else {
+        console.log("⚠️ No teacherId found for this parent, notification not sent.");
+      }
+    }
+
+    setFeedbackText(""); 
+  } catch (err) { console.error(err); }
+};
+
+  // 🔑 NEW: Delete a specific feedback/communication item
+  const handleDeleteMessage = async (student: any, messageToDelete: any) => {
+    if (!student || !student.id) return;
+    try {
+      const studentRef = doc(db, "students", student.id);
+      await setDoc(studentRef, {
+        communications: arrayRemove(messageToDelete)
+      }, { merge: true });
+    } catch (err) {
+      console.error("Error deleting message:", err);
+    }
   };
 
   const renderProgressDetail = (student: any, onBackToList?: () => void) => {
@@ -216,7 +240,12 @@ export default function SharedDashboard({ userRole, userId }: { userRole: UserRo
           </View>
           {student?.communications?.map((c: any, i: number) => (
             <View key={i} style={[styles.msgCard, c.type === 'feedback' ? styles.msgBlue : styles.msgGray]}>
-              <Text style={styles.msgSender}>{c.sender} • {c.date}</Text>
+              <View style={styles.msgHeaderRow}>
+                <Text style={styles.msgSender}>{c.sender} • {c.date}</Text>
+                <TouchableOpacity onPress={() => handleDeleteMessage(student, c)} style={styles.msgDeleteBtn}>
+                  <Trash2 size={14} color="#EF4444" />
+                </TouchableOpacity>
+              </View>
               <Text style={styles.msgContent}>{c.content}</Text>
             </View>
           ))}
@@ -249,7 +278,7 @@ export default function SharedDashboard({ userRole, userId }: { userRole: UserRo
           <Text style={styles.sectionHeading}>My Registered Students ({data.length})</Text>
           <View style={styles.grid}>
             {data.length > 0 ? data.map(s => (
-              <TouchableOpacity key={s.id} style={styles.studentCard} onPress={() => setActiveStudent(s)}>
+             <TouchableOpacity key={s.id} style={styles.studentCard} onPress={() => setActiveStudentId(s.id)}>
                 <View style={styles.cardInitialBox}><Text style={styles.cardInitial}>{s.name ? s.name[0] : "S"}</Text></View>
                 <Text style={styles.cardName}>{s.name || "Student"}</Text>
                 <Text style={styles.cardGrade}>{s.grade || "Grade N/A"}</Text>
@@ -270,10 +299,10 @@ export default function SharedDashboard({ userRole, userId }: { userRole: UserRo
   // Progress Detail View (Parents or Teacher looking at specific student)
   return (
     <SafeAreaView style={styles.container}>
-      {renderProgressDetail(
-        activeStudent || data[0],
-        userRole === 'teacher' ? () => setActiveStudent(null) : undefined
-      )}
+     {renderProgressDetail(
+  activeStudent || data[0],
+  userRole === 'teacher' ? () => setActiveStudentId(null) : undefined
+)}
     </SafeAreaView>
   );
 }
@@ -320,6 +349,8 @@ const styles = StyleSheet.create({
   msgCard: { padding: 15, borderRadius: 15, marginBottom: 10 },
   msgBlue: { backgroundColor: '#eff6ff', borderLeftWidth: 4, borderLeftColor: '#3b82f6' },
   msgGray: { backgroundColor: '#f8fafc' },
+  msgHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  msgDeleteBtn: { padding: 4 },
   msgSender: { fontSize: 10, fontWeight: 'bold', color: '#64748b' },
   msgContent: { fontSize: 13, color: '#334155', marginTop: 5, lineHeight: 18 },
   seeMoreBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingTop: 15, marginTop: 5, borderTopWidth: 1, borderTopColor: '#f1f5f9' },
