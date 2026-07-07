@@ -57,10 +57,17 @@ export default function AcademicContentList({ role }: ListProps) {
     return (
       <TouchableOpacity 
         style={styles.card} 
-        onPress={() => router.push({
-          pathname: (role === 'parent' ? '/parent/academic/academicplayer' : '/teacher/academic/academicplayer') as any,
-          params: { lessonId: item.id, type, grade, subject }
-        })}
+      onPress={() => {
+  // If type is Quiz, go to quizplayer, otherwise go to academicplayer
+  const targetPlayer = type === 'Quiz' ? 'quizplayer' : 'academicplayer';
+  
+  router.push({
+    pathname: (role === 'parent' 
+      ? `/parent/academic/${targetPlayer}` 
+      : `/teacher/academic/${targetPlayer}`) as any,
+    params: { lessonId: item.id, type, grade, subject }
+  });
+}}
       >
         <View style={styles.whiteBox}>
           {/* STAR BADGE - Only shows if lesson is completed */}

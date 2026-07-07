@@ -209,12 +209,36 @@ export default function AcademicMain({ role }: { role: 'parent' | 'teacher' }) {
           </View>
         )}
 
-        {/* START BUTTON appears after Subject is chosen */}
-        {selection.subject !== '' && (
-          <TouchableOpacity style={styles.startBtn} onPress={startLearning}>
-            <Text style={styles.startBtnText}>Start Learning 🚀</Text>
-          </TouchableOpacity>
-        )}
+       {/* START BUTTONS */}
+{selection.subject !== '' && (
+  <View style={{ gap: 10, paddingBottom: 20 }}>
+    <TouchableOpacity 
+      style={styles.startBtn} 
+      onPress={() => {
+        const basePath = role === 'parent' ? '/parent/academic' : '/teacher/academic';
+        router.push({
+          pathname: `${basePath}/contentlist` as any,
+          params: { ...selection, type: 'Reading' }
+        });
+      }}
+    >
+      <Text style={styles.startBtnText}>📖 Start Lessons</Text>
+    </TouchableOpacity>
+
+   <TouchableOpacity 
+  style={[styles.startBtn, { backgroundColor: '#BA68C8' }]} 
+  onPress={() => {
+    const basePath = role === 'parent' ? '/parent/academic' : '/teacher/academic';
+    router.push({
+      pathname: `${basePath}/quizplayer` as any, // Go straight to the player
+      params: { grade: selection.grade, subject: selection.subject }
+    });
+  }}
+>
+  <Text style={styles.startBtnText}>❓ Play Quiz</Text>
+</TouchableOpacity>
+  </View>
+)}
 
       </ScrollView>
     </SafeAreaView>

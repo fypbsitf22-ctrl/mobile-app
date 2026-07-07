@@ -2,12 +2,14 @@ import { useRouter } from 'expo-router';
 import { arrayRemove, arrayUnion, doc, getDoc, setDoc } from 'firebase/firestore';
 import {
   ArrowLeft,
+  CheckCircle2,
   ChevronDown,
   ChevronUp,
   Clock,
   Send,
   Trash2,
-  User
+  User,
+  XCircle
 } from 'lucide-react-native';
 import React, { useEffect, useState } from 'react';
 import {
@@ -23,28 +25,23 @@ import {
 } from 'react-native';
 import { db } from '../firebaseConfig';
 import { firebaseService } from '../services/firebaseService';
-
 const { width } = Dimensions.get('window');
-
 type UserRole = 'parent' | 'teacher';
-
 export default function SharedDashboard({ userRole, userId }: { userRole: UserRole, userId: string }) {
   const [data, setData] = useState<any[]>([]);
   const [profileName, setProfileName] = useState<string>("User"); 
   const [activeStudentId, setActiveStudentId] = useState<string | null>(null);
-
 // Replace this everywhere activeStudent was used to derive the live object:
 const activeStudent = activeStudentId ? data.find(d => d.id === activeStudentId) : null;
   const [isLoading, setIsLoading] = useState(true);
   
   const [historyExpanded, setHistoryExpanded] = useState(false);
   const [incompleteExpanded, setIncompleteExpanded] = useState(false);
+  const [quizExpanded, setQuizExpanded] = useState(false);
   const [feedbackText, setFeedbackText] = useState("");
   const router = useRouter();
-
   useEffect(() => {
     if (!userId) return;
-
     const initializeDashboard = async () => {
       try {
         const userRef = doc(db, "users", userId);
@@ -52,7 +49,6 @@ const activeStudent = activeStudentId ? data.find(d => d.id === activeStudentId)
         if (userSnap.exists()) {
           setProfileName(userSnap.data().name || "User");
         }
-
         const unsubscribe = firebaseService.subscribeToStudentDashboard(
           userRole,
           userId, 
@@ -61,16 +57,13 @@ const activeStudent = activeStudentId ? data.find(d => d.id === activeStudentId)
             setIsLoading(false);
           }
         );
-
         return () => unsubscribe();
       } catch (err) {
         setIsLoading(false);
       }
     };
-
     initializeDashboard();
   }, [userId, userRole]);
-
   const getWeeklyStats = (history: any[]) => {
     const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
     const counts = [0, 0, 0, 0, 0, 0, 0];
@@ -85,12 +78,10 @@ const activeStudent = activeStudentId ? data.find(d => d.id === activeStudentId)
     const max = Math.max(...counts, 5); 
     return { days, counts, max };
   };
-
  const handleSendMessage = async () => {
   const student = activeStudent || (data.length > 0 ? data[0] : null);
   if (!student || !student.id) return;
   if (!feedbackText.trim()) return;
-
   try {
     const studentRef = doc(db, "students", student.id);
     await setDoc(studentRef, {
@@ -101,7 +92,6 @@ const activeStudent = activeStudentId ? data.find(d => d.id === activeStudentId)
         type: 'feedback'
       })
     }, { merge: true });
-
     if (userRole === 'teacher') {
       await firebaseService.createNotification({
         role: "parent",
@@ -119,7 +109,6 @@ const activeStudent = activeStudentId ? data.find(d => d.id === activeStudentId)
           teacherId = userSnap.data().teacherId;
         }
       }
-
       if (teacherId) {
         await firebaseService.createNotification({
           role: "teacher",
@@ -132,11 +121,9 @@ const activeStudent = activeStudentId ? data.find(d => d.id === activeStudentId)
         console.log("⚠️ No teacherId found for this parent, notification not sent.");
       }
     }
-
     setFeedbackText(""); 
   } catch (err) { console.error(err); }
 };
-
   // 🔑 NEW: Delete a specific feedback/communication item
   const handleDeleteMessage = async (student: any, messageToDelete: any) => {
     if (!student || !student.id) return;
@@ -149,16 +136,15 @@ const activeStudent = activeStudentId ? data.find(d => d.id === activeStudentId)
       console.error("Error deleting message:", err);
     }
   };
-
   const renderProgressDetail = (student: any, onBackToList?: () => void) => {
     const displayStudent = student || { name: "Student", grade: "N/A" };
     const { days, counts, max } = getWeeklyStats(student?.history);
-
     const historyData = student?.history || [];
     const visibleHistory = historyExpanded ? historyData : historyData.slice(0, 5);
     const incompleteData = student?.incomplete || [];
     const visibleIncomplete = incompleteExpanded ? incompleteData : incompleteData.slice(0, 5);
-
+    const quizData = student?.quiz_results || [];
+    const visibleQuiz = quizExpanded ? quizData : quizData.slice(0, 5);
     return (
       <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
         <View style={styles.detailHeader}>
@@ -176,7 +162,6 @@ const activeStudent = activeStudentId ? data.find(d => d.id === activeStudentId)
             </View>
           </View>
         </View>
-
       <View style={styles.chartSection}>
         <Text style={styles.sectionHeading}>Weekly Performance</Text>
         <View style={styles.chartContainer}>
@@ -188,7 +173,6 @@ const activeStudent = activeStudentId ? data.find(d => d.id === activeStudentId)
             ))}
         </View>
       </View>
-
         <View style={styles.statsRow}>
           <View style={[styles.statCard, { backgroundColor: '#eef2ff' }]}>
             <Text style={styles.statNum}>{student?.history?.length || 0}</Text>
@@ -199,7 +183,6 @@ const activeStudent = activeStudentId ? data.find(d => d.id === activeStudentId)
             <Text style={styles.statLabel}>Incomplete</Text>
           </View>
         </View>
-
         <View style={styles.section}>
           <Text style={styles.sectionHeading}>Lesson History</Text>
           {visibleHistory.map((h: any, i: number) => (
@@ -215,7 +198,6 @@ const activeStudent = activeStudentId ? data.find(d => d.id === activeStudentId)
             </TouchableOpacity>
           )}
         </View>
-
         <View style={styles.section}>
           <Text style={[styles.sectionHeading, { color: '#f59e0b' }]}>Incomplete </Text>
           {visibleIncomplete.map((inc: any, i: number) => (
@@ -228,6 +210,58 @@ const activeStudent = activeStudentId ? data.find(d => d.id === activeStudentId)
             <TouchableOpacity style={styles.seeMoreBtn} onPress={() => setIncompleteExpanded(!incompleteExpanded)}>
               <Text style={[styles.seeMoreText, { color: '#f59e0b' }]}>{incompleteExpanded ? "See Less" : "See More"}</Text>
               {incompleteExpanded ? <ChevronUp size={16} color="#f59e0b" /> : <ChevronDown size={16} color="#f59e0b" />}
+            </TouchableOpacity>
+          )}
+        </View>
+
+        {/* NEW: Quiz Results Section */}
+        <View style={styles.section}>
+          <Text style={[styles.sectionHeading, { color: '#8b5cf6' }]}>Quiz Results</Text>
+          {quizData.length === 0 && (
+            <Text style={styles.noDataText}>No quizzes attempted yet.</Text>
+          )}
+         {visibleQuiz.map((q: any, i: number) => {
+            const isCorrect = q.status === "Correct";
+            return (
+              <View
+                key={i}
+                style={[
+                  styles.quizItem,
+                  { backgroundColor: isCorrect ? '#f0fdf4' : '#fef2f2' }
+                ]}
+              >
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.modTag}>
+                    {q.grade ? `${q.grade} • ${q.subject}` : q.subject}
+                  </Text>
+                  <Text style={styles.lesName}>{q.title}</Text>
+                  {!!q.question && (
+                    <Text style={styles.quizQuestionText} numberOfLines={2}>
+                      {q.question}
+                    </Text>
+                  )}
+                  <View style={styles.quizStatusRow}>
+                    {isCorrect ? (
+                      <CheckCircle2 size={13} color="#10b981" style={{ marginRight: 4 }} />
+                    ) : (
+                      <XCircle size={13} color="#ef4444" style={{ marginRight: 4 }} />
+                    )}
+                    <Text style={[styles.quizStatusText, { color: isCorrect ? '#10b981' : '#ef4444' }]}>
+                      {q.status}
+                    </Text>
+                  </View>
+                </View>
+                <View style={styles.timerContainer}>
+                  <Clock size={12} color="#10b981" style={{ marginRight: 4 }} />
+                  <Text style={styles.lesTimer}>{q.timeSpent}</Text>
+                </View>
+              </View>
+            );
+          })}
+          {quizData.length > 5 && (
+            <TouchableOpacity style={styles.seeMoreBtn} onPress={() => setQuizExpanded(!quizExpanded)}>
+              <Text style={[styles.seeMoreText, { color: '#8b5cf6' }]}>{quizExpanded ? "See Less" : "See More"}</Text>
+              {quizExpanded ? <ChevronUp size={16} color="#8b5cf6" /> : <ChevronDown size={16} color="#8b5cf6" />}
             </TouchableOpacity>
           )}
         </View>
@@ -253,11 +287,9 @@ const activeStudent = activeStudentId ? data.find(d => d.id === activeStudentId)
       </ScrollView>
     );
   };
-
   if (isLoading) {
     return <SafeAreaView style={styles.center}><ActivityIndicator size="large" color="#6366f1" /></SafeAreaView>;
   }
-
   // Teacher Main List View
   if (userRole === 'teacher' && !activeStudent) {
     return (
@@ -295,7 +327,6 @@ const activeStudent = activeStudentId ? data.find(d => d.id === activeStudentId)
       </SafeAreaView>
     );
   }
-
   // Progress Detail View (Parents or Teacher looking at specific student)
   return (
     <SafeAreaView style={styles.container}>
@@ -306,7 +337,6 @@ const activeStudent = activeStudentId ? data.find(d => d.id === activeStudentId)
     </SafeAreaView>
   );
 }
-
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#f8fafc' },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
@@ -346,11 +376,17 @@ const styles = StyleSheet.create({
   lesTimer: { fontWeight: '900', color: '#10b981', fontSize: 12 },
   incItem: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 14, backgroundColor: '#fff7ed', borderRadius: 15, marginBottom: 10 },
   timerText: { color: '#f59e0b', fontWeight: 'bold', fontFamily: 'monospace' },
+  // NEW: quiz item styles
+  quizItem: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 14, borderRadius: 15, marginBottom: 10 },
+  quizStatusRow: { flexDirection: 'row', alignItems: 'center', marginTop: 4 },
+  quizStatusText: { fontSize: 11, fontWeight: 'bold' },
+  noDataText: { fontSize: 13, color: '#94a3b8', textAlign: 'center', paddingVertical: 10 },
   msgCard: { padding: 15, borderRadius: 15, marginBottom: 10 },
   msgBlue: { backgroundColor: '#eff6ff', borderLeftWidth: 4, borderLeftColor: '#3b82f6' },
   msgGray: { backgroundColor: '#f8fafc' },
   msgHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   msgDeleteBtn: { padding: 4 },
+  quizQuestionText: { fontSize: 12, color: '#475569', marginTop: 3, fontStyle: 'italic' },
   msgSender: { fontSize: 10, fontWeight: 'bold', color: '#64748b' },
   msgContent: { fontSize: 13, color: '#334155', marginTop: 5, lineHeight: 18 },
   seeMoreBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingTop: 15, marginTop: 5, borderTopWidth: 1, borderTopColor: '#f1f5f9' },
