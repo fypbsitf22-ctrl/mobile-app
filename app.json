@@ -1,11 +1,11 @@
 {
   "expo": {
-    "name": "smart-landing-app",
-    "slug": "smart-landing-app",
+    "name": "Mindbuddy",
+    "slug": "Mindbuddy",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "smartlandingapp",
+    "scheme": "mindbuddy",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
@@ -38,11 +38,12 @@
             "backgroundColor": "#000000"
           }
         }
-      ]
+      ],
+      "expo-font"
     ],
     "experiments": {
       "typedRoutes": true,
-      "reactCompiler": true
+      "reactCompiler": false
     }
   }
 }

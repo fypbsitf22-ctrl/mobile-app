@@ -1,6 +1,6 @@
 // app/firebaseConfig.ts
 import { getApp, getApps, initializeApp } from "firebase/app";
-import { getFirestore } from "firebase/firestore";
+import { getFirestore, setLogLevel } from "firebase/firestore";
 // IMPORTANT: Use these for React Native
 import { getAuth, sendPasswordResetEmail } from "firebase/auth";
 
@@ -21,5 +21,6 @@ const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
 const auth = getAuth(app); 
 
 const db = getFirestore(app);
+setLogLevel('silent'); // suppresses expected permission-denied noise on logout/login
 
 export { auth, db, sendPasswordResetEmail };
